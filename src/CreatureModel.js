@@ -1,14 +1,18 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 /**
- * Pokemon-Style 3D Creature Model
- * Features: Toon shading, outlines, chibi proportions, expressive features
+ * High-Quality Creature Model Loader
+ * Supports GLB/GLTF models for professional quality characters
  */
 export class CreatureModel {
   constructor(creatureData) {
     this.data = creatureData;
     this.group = new THREE.Group();
+    this.mixer = null;
+    this.animations = {};
     this.animationTime = 0;
+    this.clock = new THREE.Clock();
     
     // State
     this.state = 'idle';
@@ -16,419 +20,356 @@ export class CreatureModel {
     this.walkTarget = new THREE.Vector3();
     this.walkSpeed = 0.08;
     this.walkRadius = 0.35;
+    this.isModelLoaded = false;
     
     // Parts for animation
     this.parts = {};
+    this.model = null;
     
-    // Create gradient textures for toon shading
-    this.toonGradient = this.createToonGradient();
+    // Model URLs - using free CC0 models from various sources
+    this.modelUrls = {
+      fluffox: 'https://vazxmixjsiawhamofees.supabase.co/storage/v1/object/public/models/fox/model.gltf',
+      bubbird: 'https://vazxmixjsiawhamofees.supabase.co/storage/v1/object/public/models/duck/model.gltf',
+      leafling: 'https://vazxmixjsiawhamofees.supabase.co/storage/v1/object/public/models/tree-spruce/model.gltf',
+      sparkitty: 'https://vazxmixjsiawhamofees.supabase.co/storage/v1/object/public/models/cat/model.gltf',
+      aquapup: 'https://vazxmixjsiawhamofees.supabase.co/storage/v1/object/public/models/dog/model.gltf',
+      stardust: 'https://vazxmixjsiawhamofees.supabase.co/storage/v1/object/public/models/rabbit/model.gltf'
+    };
     
-    this.buildCreature();
-    this.scheduleNextAction();
+    this.init();
   }
 
-  createToonGradient() {
-    const canvas = document.createElement('canvas');
-    canvas.width = 4;
-    canvas.height = 1;
-    const ctx = canvas.getContext('2d');
+  async init() {
+    // Try to load GLB model first
+    const modelUrl = this.modelUrls[this.data.id];
     
-    // 4-step toon gradient
-    ctx.fillStyle = '#333';
-    ctx.fillRect(0, 0, 1, 1);
-    ctx.fillStyle = '#666';
-    ctx.fillRect(1, 0, 1, 1);
-    ctx.fillStyle = '#999';
-    ctx.fillRect(2, 0, 1, 1);
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(3, 0, 1, 1);
+    if (modelUrl) {
+      try {
+        await this.loadGLBModel(modelUrl);
+      } catch (error) {
+        console.log('GLB load failed, using procedural fallback:', error);
+        this.buildProceduralCreature();
+      }
+    } else {
+      this.buildProceduralCreature();
+    }
     
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.minFilter = THREE.NearestFilter;
-    texture.magFilter = THREE.NearestFilter;
-    return texture;
-  }
-
-  createToonMaterial(color, options = {}) {
-    return new THREE.MeshToonMaterial({
-      color: color,
-      gradientMap: this.toonGradient,
-      ...options
-    });
-  }
-
-  buildCreature() {
-    const { primary, secondary, accent } = this.data.colors;
-    
-    // Root for transforms
-    this.root = new THREE.Group();
-    this.group.add(this.root);
-
-    // === BODY (Chibi proportions: small round body) ===
-    this.buildBody(primary, secondary, accent);
-    
-    // === HEAD (Big cute head - 60% of total height) ===
-    this.buildHead(primary, secondary, accent);
-    
-    // === LIMBS ===
-    this.buildLimbs(primary, accent);
-    
-    // === TAIL ===
-    this.buildTail(primary, secondary);
-    
-    // === OUTLINE EFFECT ===
-    this.addOutlines();
-    
-    // === SHADOW ===
     this.addShadow();
+    this.scheduleNextAction();
     
     // Random start position
     const angle = Math.random() * Math.PI * 2;
     const dist = Math.random() * 0.15;
-    this.root.position.x = Math.cos(angle) * dist;
-    this.root.position.z = Math.sin(angle) * dist;
+    this.group.position.x = Math.cos(angle) * dist;
+    this.group.position.z = Math.sin(angle) * dist;
   }
 
-  buildBody(primary, secondary, accent) {
-    // Main body - rounded and cute
-    const bodyGeo = this.createSmoothSphere(0.09, 32);
-    bodyGeo.scale(1.1, 0.9, 1.0);
+  async loadGLBModel(url) {
+    return new Promise((resolve, reject) => {
+      const loader = new GLTFLoader();
+      
+      loader.load(
+        url,
+        (gltf) => {
+          this.model = gltf.scene;
+          
+          // Scale and position the model
+          const box = new THREE.Box3().setFromObject(this.model);
+          const size = box.getSize(new THREE.Vector3());
+          const maxDim = Math.max(size.x, size.y, size.z);
+          const scale = 0.25 / maxDim;
+          this.model.scale.setScalar(scale);
+          
+          // Center the model
+          const center = box.getCenter(new THREE.Vector3());
+          this.model.position.sub(center.multiplyScalar(scale));
+          this.model.position.y = 0;
+          
+          // Enable shadows
+          this.model.traverse((child) => {
+            if (child.isMesh) {
+              child.castShadow = true;
+              child.receiveShadow = true;
+              
+              // Apply toon-like material
+              if (child.material) {
+                const oldMat = child.material;
+                child.material = new THREE.MeshToonMaterial({
+                  color: oldMat.color || new THREE.Color(this.data.colors.primary),
+                  map: oldMat.map || null,
+                });
+              }
+            }
+          });
+          
+          // Setup animations if available
+          if (gltf.animations && gltf.animations.length > 0) {
+            this.mixer = new THREE.AnimationMixer(this.model);
+            gltf.animations.forEach((clip) => {
+              this.animations[clip.name.toLowerCase()] = this.mixer.clipAction(clip);
+            });
+            
+            // Play idle animation if available
+            if (this.animations['idle']) {
+              this.animations['idle'].play();
+            }
+          }
+          
+          this.group.add(this.model);
+          this.isModelLoaded = true;
+          resolve();
+        },
+        (progress) => {
+          // Loading progress
+        },
+        (error) => {
+          reject(error);
+        }
+      );
+    });
+  }
+
+  buildProceduralCreature() {
+    // Enhanced procedural fallback with better quality
+    const { primary, secondary, accent } = this.data.colors;
     
-    const bodyMat = this.createToonMaterial(primary);
-    this.body = new THREE.Mesh(bodyGeo, bodyMat);
-    this.body.position.y = 0.09;
+    // Create toon gradient
+    const canvas = document.createElement('canvas');
+    canvas.width = 4;
+    canvas.height = 1;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#444';
+    ctx.fillRect(0, 0, 1, 1);
+    ctx.fillStyle = '#777';
+    ctx.fillRect(1, 0, 1, 1);
+    ctx.fillStyle = '#aaa';
+    ctx.fillRect(2, 0, 1, 1);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(3, 0, 1, 1);
+    
+    const toonGradient = new THREE.CanvasTexture(canvas);
+    toonGradient.minFilter = THREE.NearestFilter;
+    toonGradient.magFilter = THREE.NearestFilter;
+    
+    const createMat = (color) => new THREE.MeshToonMaterial({ 
+      color, 
+      gradientMap: toonGradient 
+    });
+
+    // Root
+    this.root = new THREE.Group();
+    this.group.add(this.root);
+
+    // Body
+    const bodyGeo = new THREE.SphereGeometry(0.1, 48, 48);
+    bodyGeo.scale(1.1, 0.95, 1.0);
+    this.body = new THREE.Mesh(bodyGeo, createMat(primary));
+    this.body.position.y = 0.1;
     this.body.castShadow = true;
     this.parts.body = this.body;
     this.root.add(this.body);
-    
-    // Belly patch - lighter colored oval
-    const bellyGeo = this.createSmoothSphere(0.065, 24);
-    bellyGeo.scale(0.9, 0.85, 0.4);
-    const bellyMat = this.createToonMaterial(accent);
-    this.belly = new THREE.Mesh(bellyGeo, bellyMat);
-    this.belly.position.set(0, -0.01, 0.055);
-    this.body.add(this.belly);
-  }
 
-  buildHead(primary, secondary, accent) {
-    // Big round head (chibi style)
-    const headGeo = this.createSmoothSphere(0.12, 48);
-    headGeo.scale(1.0, 0.95, 0.95);
-    
-    const headMat = this.createToonMaterial(primary);
-    this.head = new THREE.Mesh(headGeo, headMat);
-    this.head.position.set(0, 0.13, 0.02);
+    // Belly
+    const bellyGeo = new THREE.SphereGeometry(0.07, 32, 32);
+    bellyGeo.scale(0.9, 0.85, 0.45);
+    const belly = new THREE.Mesh(bellyGeo, createMat(accent));
+    belly.position.set(0, -0.01, 0.06);
+    this.body.add(belly);
+
+    // Head
+    const headGeo = new THREE.SphereGeometry(0.12, 48, 48);
+    this.head = new THREE.Mesh(headGeo, createMat(primary));
+    this.head.position.set(0, 0.14, 0.02);
     this.head.castShadow = true;
     this.parts.head = this.head;
     this.body.add(this.head);
+
+    // Face
+    this.buildFace(primary, secondary, accent, createMat);
     
-    // Face container
-    this.face = new THREE.Group();
-    this.face.position.set(0, 0, 0.08);
-    this.head.add(this.face);
+    // Ears
+    this.buildEars(createMat, primary, secondary);
     
-    // Build facial features
-    this.buildEyes(primary);
-    this.buildNose();
-    this.buildMouth();
-    this.buildCheeks();
-    this.buildEars(primary, secondary);
+    // Limbs
+    this.buildLimbs(createMat, primary, accent);
+    
+    // Tail
+    this.buildTail(createMat, primary, secondary);
+    
+    // Outline
+    this.addOutline(this.body);
+    this.addOutline(this.head);
+    
+    this.isModelLoaded = true;
   }
 
-  buildEyes(primary) {
-    const eyeGroup = new THREE.Group();
-    eyeGroup.position.y = 0.015;
+  buildFace(primary, secondary, accent, createMat) {
+    const face = new THREE.Group();
+    face.position.set(0, 0, 0.08);
+    this.head.add(face);
     
+    // Eyes
     [-0.04, 0.04].forEach((x, i) => {
-      const eye = this.createEye(x, primary);
-      eyeGroup.add(eye);
-      if (i === 0) this.parts.leftEye = eye;
-      else this.parts.rightEye = eye;
+      const eyeGroup = new THREE.Group();
+      eyeGroup.position.set(x, 0.015, 0);
+      
+      // White
+      const whiteGeo = new THREE.SphereGeometry(0.028, 32, 32);
+      whiteGeo.scale(1, 1.15, 0.7);
+      const white = new THREE.Mesh(whiteGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }));
+      eyeGroup.add(white);
+      
+      // Iris
+      const irisGeo = new THREE.SphereGeometry(0.018, 24, 24);
+      const iris = new THREE.Mesh(irisGeo, new THREE.MeshBasicMaterial({ color: 0x3D2B22 }));
+      iris.position.z = 0.015;
+      white.add(iris);
+      
+      // Pupil
+      const pupilGeo = new THREE.SphereGeometry(0.01, 16, 16);
+      const pupil = new THREE.Mesh(pupilGeo, new THREE.MeshBasicMaterial({ color: 0x000000 }));
+      pupil.position.z = 0.008;
+      iris.add(pupil);
+      
+      // Shine
+      const shineGeo = new THREE.SphereGeometry(0.006, 12, 12);
+      const shine = new THREE.Mesh(shineGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }));
+      shine.position.set(0.005, 0.007, 0.016);
+      iris.add(shine);
+      
+      const shine2 = new THREE.Mesh(new THREE.SphereGeometry(0.003, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+      shine2.position.set(-0.003, -0.004, 0.016);
+      iris.add(shine2);
+      
+      // Eyelid
+      const lidGeo = new THREE.SphereGeometry(0.03, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.5);
+      const lid = new THREE.Mesh(lidGeo, createMat(primary));
+      lid.rotation.x = Math.PI;
+      lid.scale.y = 0.01;
+      eyeGroup.add(lid);
+      eyeGroup.userData.lid = lid;
+      
+      face.add(eyeGroup);
+      if (i === 0) this.parts.leftEye = eyeGroup;
+      else this.parts.rightEye = eyeGroup;
     });
     
-    this.face.add(eyeGroup);
-  }
-
-  createEye(xPos, primaryColor) {
-    const eyeContainer = new THREE.Group();
-    eyeContainer.position.x = xPos;
-    
-    // White of eye (big and round like Pokemon)
-    const whiteGeo = this.createSmoothSphere(0.028, 32);
-    whiteGeo.scale(1, 1.15, 0.75);
-    const whiteMat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
-    const white = new THREE.Mesh(whiteGeo, whiteMat);
-    eyeContainer.add(white);
-    
-    // Iris (colored part)
-    const irisGeo = this.createSmoothSphere(0.018, 24);
-    const irisMat = new THREE.MeshBasicMaterial({ color: 0x3D2B22 });
-    const iris = new THREE.Mesh(irisGeo, irisMat);
-    iris.position.z = 0.015;
-    white.add(iris);
-    eyeContainer.userData.iris = iris;
-    
-    // Pupil (black center)
-    const pupilGeo = this.createSmoothSphere(0.01, 16);
-    const pupilMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
-    const pupil = new THREE.Mesh(pupilGeo, pupilMat);
-    pupil.position.z = 0.008;
-    iris.add(pupil);
-    
-    // Big shine (top-right) - signature Pokemon look
-    const shine1Geo = this.createSmoothSphere(0.007, 12);
-    const shineMat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
-    const shine1 = new THREE.Mesh(shine1Geo, shineMat);
-    shine1.position.set(0.005, 0.008, 0.018);
-    iris.add(shine1);
-    
-    // Small shine (bottom-left)
-    const shine2Geo = this.createSmoothSphere(0.004, 8);
-    const shine2 = new THREE.Mesh(shine2Geo, shineMat);
-    shine2.position.set(-0.004, -0.005, 0.018);
-    iris.add(shine2);
-    
-    // Eyelid for blinking
-    const lidGeo = this.createSmoothSphere(0.03, 24, Math.PI);
-    const lidMat = this.createToonMaterial(primaryColor);
-    const lid = new THREE.Mesh(lidGeo, lidMat);
-    lid.rotation.x = Math.PI;
-    lid.position.z = 0.002;
-    lid.scale.y = 0.01; // Start open
-    eyeContainer.add(lid);
-    eyeContainer.userData.lid = lid;
-    
-    return eyeContainer;
-  }
-
-  buildNose() {
-    // Small cute nose
-    const noseGeo = this.createSmoothSphere(0.012, 16);
+    // Nose
+    const noseGeo = new THREE.SphereGeometry(0.012, 16, 16);
     noseGeo.scale(1.1, 0.8, 0.7);
-    const noseMat = this.createToonMaterial(0x4A3728);
-    this.nose = new THREE.Mesh(noseGeo, noseMat);
-    this.nose.position.set(0, -0.025, 0.06);
-    this.face.add(this.nose);
+    const nose = new THREE.Mesh(noseGeo, createMat(0x4A3728));
+    nose.position.set(0, -0.025, 0.065);
+    face.add(nose);
     
-    // Nose highlight
-    const hlGeo = this.createSmoothSphere(0.004, 8);
-    const hlMat = new THREE.MeshBasicMaterial({ 
-      color: 0xFFFFFF, transparent: true, opacity: 0.5 
-    });
-    const hl = new THREE.Mesh(hlGeo, hlMat);
-    hl.position.set(0.003, 0.003, 0.006);
-    this.nose.add(hl);
-  }
-
-  buildMouth() {
+    // Mouth
     this.mouthGroup = new THREE.Group();
-    this.mouthGroup.position.set(0, -0.05, 0.05);
-    this.face.add(this.mouthGroup);
+    this.mouthGroup.position.set(0, -0.05, 0.055);
+    face.add(this.mouthGroup);
     
-    // Smile line (curved tube)
     const smileCurve = new THREE.QuadraticBezierCurve3(
       new THREE.Vector3(-0.025, 0, 0),
       new THREE.Vector3(0, -0.012, 0.005),
       new THREE.Vector3(0.025, 0, 0)
     );
     const smileGeo = new THREE.TubeGeometry(smileCurve, 16, 0.004, 8, false);
-    const smileMat = new THREE.MeshBasicMaterial({ color: 0x4A3728 });
-    this.smile = new THREE.Mesh(smileGeo, smileMat);
+    this.smile = new THREE.Mesh(smileGeo, new THREE.MeshBasicMaterial({ color: 0x4A3728 }));
     this.mouthGroup.add(this.smile);
     
-    // Open mouth (for eating/playing)
-    const openGeo = this.createSmoothSphere(0.02, 16);
+    const openGeo = new THREE.SphereGeometry(0.02, 16, 16);
     openGeo.scale(1.2, 0.9, 0.7);
-    const openMat = this.createToonMaterial(0x8B4557);
-    this.openMouth = new THREE.Mesh(openGeo, openMat);
+    this.openMouth = new THREE.Mesh(openGeo, createMat(0x8B4557));
     this.openMouth.visible = false;
     this.mouthGroup.add(this.openMouth);
     
-    // Tongue
-    const tongueGeo = this.createSmoothSphere(0.01, 12);
-    tongueGeo.scale(1.2, 0.5, 1);
-    const tongueMat = this.createToonMaterial(0xFF8FAB);
-    this.tongue = new THREE.Mesh(tongueGeo, tongueMat);
-    this.tongue.position.set(0, -0.008, 0.008);
-    this.tongue.visible = false;
-    this.mouthGroup.add(this.tongue);
-  }
-
-  buildCheeks() {
-    // Blush circles (signature Pokemon feature)
+    // Blush
+    const blushMat = new THREE.MeshBasicMaterial({ color: 0xFF8FAB, transparent: true, opacity: 0.5 });
     const blushGeo = new THREE.CircleGeometry(0.018, 24);
-    const blushMat = new THREE.MeshBasicMaterial({ 
-      color: 0xFF8FAB, transparent: true, opacity: 0.6, depthWrite: false 
-    });
     
     this.leftBlush = new THREE.Mesh(blushGeo, blushMat);
     this.leftBlush.position.set(-0.065, -0.015, 0.04);
     this.leftBlush.rotation.y = 0.35;
-    this.face.add(this.leftBlush);
+    face.add(this.leftBlush);
     
     this.rightBlush = new THREE.Mesh(blushGeo, blushMat.clone());
     this.rightBlush.position.set(0.065, -0.015, 0.04);
     this.rightBlush.rotation.y = -0.35;
-    this.face.add(this.rightBlush);
+    face.add(this.rightBlush);
   }
 
-  buildEars(primary, secondary) {
+  buildEars(createMat, primary, secondary) {
     this.ears = new THREE.Group();
     const type = this.data.id;
     
-    if (type === 'bubbird') {
-      this.buildCrest(primary, secondary);
-    } else if (type === 'aquapup') {
-      this.buildFloppyEars(primary, secondary);
-    } else if (type === 'stardust') {
-      this.buildBunnyEars(primary, secondary);
-    } else {
-      this.buildPointyEars(primary, secondary);
-    }
+    [-0.06, 0.06].forEach((x, i) => {
+      const earGroup = new THREE.Group();
+      
+      if (type === 'aquapup') {
+        // Floppy ears
+        const earGeo = new THREE.SphereGeometry(0.035, 24, 24);
+        earGeo.scale(0.5, 1.3, 0.35);
+        const ear = new THREE.Mesh(earGeo, createMat(primary));
+        ear.castShadow = true;
+        earGroup.add(ear);
+        
+        earGroup.position.set(x, 0.06, -0.01);
+        earGroup.rotation.z = x > 0 ? -0.85 : 0.85;
+        earGroup.rotation.x = 0.3;
+      } else if (type === 'stardust') {
+        // Long bunny ears
+        const earGeo = new THREE.SphereGeometry(0.025, 24, 24);
+        earGeo.scale(0.6, 2.5, 0.5);
+        const ear = new THREE.Mesh(earGeo, createMat(primary));
+        ear.position.y = 0.05;
+        ear.castShadow = true;
+        earGroup.add(ear);
+        
+        const innerGeo = new THREE.SphereGeometry(0.015, 16, 16);
+        innerGeo.scale(0.5, 2, 0.3);
+        const inner = new THREE.Mesh(innerGeo, createMat(secondary));
+        inner.position.set(0, 0.05, 0.008);
+        earGroup.add(inner);
+        
+        earGroup.position.set(x * 0.5, 0.1, -0.01);
+        earGroup.rotation.z = x > 0 ? -0.15 : 0.15;
+      } else {
+        // Pointy ears
+        const earGeo = new THREE.ConeGeometry(0.028, 0.07, 12);
+        const ear = new THREE.Mesh(earGeo, createMat(primary));
+        ear.rotation.x = -0.2;
+        ear.castShadow = true;
+        earGroup.add(ear);
+        
+        const innerGeo = new THREE.ConeGeometry(0.016, 0.045, 12);
+        const inner = new THREE.Mesh(innerGeo, createMat(secondary));
+        inner.position.set(0, -0.008, 0.01);
+        inner.rotation.x = -0.2;
+        earGroup.add(inner);
+        
+        earGroup.position.set(x, 0.1, 0);
+        earGroup.rotation.z = x > 0 ? -0.2 : 0.2;
+      }
+      
+      this.ears.add(earGroup);
+      if (i === 0) this.parts.leftEar = earGroup;
+      else this.parts.rightEar = earGroup;
+    });
     
     this.head.add(this.ears);
   }
 
-  buildPointyEars(primary, secondary) {
-    [-0.065, 0.065].forEach((x, i) => {
-      const earGroup = new THREE.Group();
-      
-      // Outer ear - triangular with rounded edges
-      const earShape = new THREE.Shape();
-      earShape.moveTo(0, 0);
-      earShape.lineTo(-0.025, 0.07);
-      earShape.quadraticCurveTo(0, 0.085, 0.025, 0.07);
-      earShape.lineTo(0, 0);
-      
-      const earGeo = new THREE.ExtrudeGeometry(earShape, {
-        depth: 0.02,
-        bevelEnabled: true,
-        bevelThickness: 0.008,
-        bevelSize: 0.008,
-        bevelSegments: 4
-      });
-      
-      const earMat = this.createToonMaterial(primary);
-      const ear = new THREE.Mesh(earGeo, earMat);
-      ear.rotation.x = -0.25;
-      ear.position.z = -0.01;
-      ear.castShadow = true;
-      earGroup.add(ear);
-      
-      // Inner ear
-      const innerShape = new THREE.Shape();
-      innerShape.moveTo(0, 0.01);
-      innerShape.lineTo(-0.012, 0.045);
-      innerShape.quadraticCurveTo(0, 0.055, 0.012, 0.045);
-      innerShape.lineTo(0, 0.01);
-      
-      const innerGeo = new THREE.ShapeGeometry(innerShape);
-      const innerMat = this.createToonMaterial(secondary);
-      const inner = new THREE.Mesh(innerGeo, innerMat);
-      inner.position.set(0, 0.005, 0.025);
-      inner.rotation.x = -0.25;
-      earGroup.add(inner);
-      
-      earGroup.position.set(x, 0.1, 0);
-      earGroup.rotation.z = x > 0 ? -0.2 : 0.2;
-      
-      this.ears.add(earGroup);
-      if (i === 0) this.parts.leftEar = earGroup;
-      else this.parts.rightEar = earGroup;
-    });
-  }
-
-  buildFloppyEars(primary, secondary) {
-    [-0.08, 0.08].forEach((x, i) => {
-      const earGroup = new THREE.Group();
-      
-      const earGeo = this.createSmoothSphere(0.035, 24);
-      earGeo.scale(0.5, 1.4, 0.35);
-      const earMat = this.createToonMaterial(primary);
-      const ear = new THREE.Mesh(earGeo, earMat);
-      ear.castShadow = true;
-      earGroup.add(ear);
-      
-      // Inner ear
-      const innerGeo = this.createSmoothSphere(0.025, 16);
-      innerGeo.scale(0.4, 1.1, 0.25);
-      const innerMat = this.createToonMaterial(secondary);
-      const inner = new THREE.Mesh(innerGeo, innerMat);
-      inner.position.z = 0.008;
-      earGroup.add(inner);
-      
-      earGroup.position.set(x, 0.06, -0.01);
-      earGroup.rotation.z = x > 0 ? -0.9 : 0.9;
-      earGroup.rotation.x = 0.3;
-      
-      this.ears.add(earGroup);
-      if (i === 0) this.parts.leftEar = earGroup;
-      else this.parts.rightEar = earGroup;
-    });
-  }
-
-  buildBunnyEars(primary, secondary) {
-    [-0.03, 0.03].forEach((x, i) => {
-      const earGroup = new THREE.Group();
-      
-      // Long bunny ear
-      const earGeo = this.createSmoothSphere(0.025, 24);
-      earGeo.scale(0.6, 2.5, 0.5);
-      const earMat = this.createToonMaterial(primary);
-      const ear = new THREE.Mesh(earGeo, earMat);
-      ear.position.y = 0.05;
-      ear.castShadow = true;
-      earGroup.add(ear);
-      
-      // Inner ear
-      const innerGeo = this.createSmoothSphere(0.015, 16);
-      innerGeo.scale(0.5, 2, 0.3);
-      const innerMat = this.createToonMaterial(secondary);
-      const inner = new THREE.Mesh(innerGeo, innerMat);
-      inner.position.set(0, 0.05, 0.008);
-      earGroup.add(inner);
-      
-      earGroup.position.set(x, 0.1, -0.01);
-      earGroup.rotation.z = x > 0 ? -0.15 : 0.15;
-      earGroup.rotation.x = -0.1;
-      
-      this.ears.add(earGroup);
-      if (i === 0) this.parts.leftEar = earGroup;
-      else this.parts.rightEar = earGroup;
-    });
-  }
-
-  buildCrest(primary, secondary) {
-    // Bird crest feathers
-    const colors = [secondary, primary, secondary];
-    [-0.015, 0, 0.015].forEach((zOff, i) => {
-      const featherGeo = new THREE.ConeGeometry(0.015, 0.055 - Math.abs(i - 1) * 0.01, 8);
-      const featherMat = this.createToonMaterial(colors[i]);
-      const feather = new THREE.Mesh(featherGeo, featherMat);
-      feather.position.set(0, 0.12, -0.02 + zOff);
-      feather.rotation.x = -0.2 - i * 0.1;
-      feather.castShadow = true;
-      this.ears.add(feather);
-    });
-  }
-
-  buildLimbs(primary, accent) {
-    // Arms (small and stubby - chibi style)
+  buildLimbs(createMat, primary, accent) {
+    // Arms
     [-0.09, 0.09].forEach((x, i) => {
       const armGroup = new THREE.Group();
       
-      // Arm
-      const armGeo = this.createSmoothSphere(0.022, 16);
+      const armGeo = new THREE.SphereGeometry(0.022, 16, 16);
       armGeo.scale(0.8, 1.3, 0.9);
-      const armMat = this.createToonMaterial(primary);
-      const arm = new THREE.Mesh(armGeo, armMat);
+      const arm = new THREE.Mesh(armGeo, createMat(primary));
       arm.castShadow = true;
       armGroup.add(arm);
       
-      // Paw
-      const pawGeo = this.createSmoothSphere(0.018, 16);
-      const pawMat = this.createToonMaterial(accent);
-      const paw = new THREE.Mesh(pawGeo, pawMat);
+      const pawGeo = new THREE.SphereGeometry(0.018, 16, 16);
+      const paw = new THREE.Mesh(pawGeo, createMat(accent));
       paw.position.y = -0.03;
       armGroup.add(paw);
       
@@ -440,15 +381,13 @@ export class CreatureModel {
       else this.parts.rightArm = armGroup;
     });
     
-    // Legs (small feet)
+    // Legs
     [-0.04, 0.04].forEach((x, i) => {
       const legGroup = new THREE.Group();
       
-      // Foot
-      const footGeo = this.createSmoothSphere(0.025, 16);
+      const footGeo = new THREE.SphereGeometry(0.025, 16, 16);
       footGeo.scale(1.1, 0.6, 1.3);
-      const footMat = this.createToonMaterial(accent);
-      const foot = new THREE.Mesh(footGeo, footMat);
+      const foot = new THREE.Mesh(footGeo, createMat(accent));
       foot.castShadow = true;
       legGroup.add(foot);
       
@@ -460,49 +399,26 @@ export class CreatureModel {
     });
   }
 
-  buildTail(primary, secondary) {
+  buildTail(createMat, primary, secondary) {
     this.tailGroup = new THREE.Group();
     const type = this.data.id;
     
     if (type === 'fluffox') {
-      // Fluffy fox tail
-      const tailGeo = this.createSmoothSphere(0.055, 24);
+      const tailGeo = new THREE.SphereGeometry(0.055, 24, 24);
       tailGeo.scale(0.6, 0.6, 1.4);
-      const tailMat = this.createToonMaterial(secondary);
-      const tail = new THREE.Mesh(tailGeo, tailMat);
+      const tail = new THREE.Mesh(tailGeo, createMat(secondary));
       tail.position.z = -0.04;
       tail.rotation.x = -0.3;
       tail.castShadow = true;
       this.tailGroup.add(tail);
       
-      // White tip
-      const tipGeo = this.createSmoothSphere(0.03, 16);
-      const tipMat = this.createToonMaterial(0xFFFFFF);
-      const tip = new THREE.Mesh(tipGeo, tipMat);
+      const tipGeo = new THREE.SphereGeometry(0.03, 16, 16);
+      const tip = new THREE.Mesh(tipGeo, createMat(0xFFFFFF));
       tip.position.z = -0.06;
       this.tailGroup.add(tip);
-      
-    } else if (type === 'bubbird') {
-      // Tail feathers
-      [-0.02, 0, 0.02].forEach((x, i) => {
-        const featherGeo = new THREE.BoxGeometry(0.015, 0.004, 0.05);
-        const featherMat = this.createToonMaterial(i === 1 ? primary : secondary);
-        const feather = new THREE.Mesh(featherGeo, featherMat);
-        feather.position.set(x, 0, -0.02);
-        feather.rotation.x = 0.4;
-        this.tailGroup.add(feather);
-      });
-    } else if (type === 'stardust') {
-      // Bunny puff tail
-      const tailGeo = this.createSmoothSphere(0.03, 16);
-      const tailMat = this.createToonMaterial(secondary);
-      const tail = new THREE.Mesh(tailGeo, tailMat);
-      this.tailGroup.add(tail);
     } else {
-      // Round tail
-      const tailGeo = this.createSmoothSphere(0.03, 16);
-      const tailMat = this.createToonMaterial(secondary);
-      const tail = new THREE.Mesh(tailGeo, tailMat);
+      const tailGeo = new THREE.SphereGeometry(0.03, 16, 16);
+      const tail = new THREE.Mesh(tailGeo, createMat(secondary));
       tail.castShadow = true;
       this.tailGroup.add(tail);
     }
@@ -510,162 +426,18 @@ export class CreatureModel {
     this.tailGroup.position.set(0, 0, -0.08);
     this.body.add(this.tailGroup);
     this.parts.tail = this.tailGroup;
-    
-    // Add special effects
-    this.addSpecialEffects();
   }
 
-  addSpecialEffects() {
-    const id = this.data.id;
-    
-    if (id === 'sparkitty') {
-      // Lightning bolt cheek marks
-      this.addLightningMarks();
-    } else if (id === 'stardust') {
-      // Floating stars
-      this.addFloatingStars();
-    } else if (id === 'leafling') {
-      // Flower accessory
-      this.addFlower();
-    } else if (id === 'aquapup') {
-      // Water droplet
-      this.addWaterDroplet();
-    } else if (id === 'bubbird') {
-      // Wings
-      this.addWings();
-    }
-  }
-
-  addLightningMarks() {
-    const boltShape = new THREE.Shape();
-    boltShape.moveTo(0, 0.015);
-    boltShape.lineTo(0.008, 0.008);
-    boltShape.lineTo(0.003, 0.008);
-    boltShape.lineTo(0.01, 0);
-    boltShape.lineTo(0.002, 0.006);
-    boltShape.lineTo(0.007, 0.006);
-    boltShape.lineTo(0, 0.015);
-    
-    const boltGeo = new THREE.ShapeGeometry(boltShape);
-    const boltMat = new THREE.MeshBasicMaterial({ color: 0xFFD700 });
-    
-    const leftBolt = new THREE.Mesh(boltGeo, boltMat);
-    leftBolt.position.set(-0.075, -0.02, 0.055);
-    leftBolt.rotation.y = 0.4;
-    leftBolt.rotation.z = 0.2;
-    this.face.add(leftBolt);
-    
-    const rightBolt = new THREE.Mesh(boltGeo, boltMat);
-    rightBolt.position.set(0.065, -0.02, 0.055);
-    rightBolt.rotation.y = -0.4;
-    rightBolt.rotation.z = -0.2;
-    rightBolt.scale.x = -1;
-    this.face.add(rightBolt);
-  }
-
-  addFloatingStars() {
-    this.stars = [];
-    const starMat = new THREE.MeshBasicMaterial({ color: 0xFFE082 });
-    
-    for (let i = 0; i < 5; i++) {
-      const starGeo = new THREE.OctahedronGeometry(0.012, 0);
-      const star = new THREE.Mesh(starGeo, starMat);
-      star.userData = {
-        angle: (i / 5) * Math.PI * 2,
-        radius: 0.18,
-        speed: 0.4 + Math.random() * 0.2,
-        yOffset: (Math.random() - 0.5) * 0.1
-      };
-      this.root.add(star);
-      this.stars.push(star);
-    }
-  }
-
-  addFlower() {
-    const flowerGroup = new THREE.Group();
-    
-    // Petals
-    const petalMat = this.createToonMaterial(0xFFB7C5);
-    for (let i = 0; i < 5; i++) {
-      const petalGeo = this.createSmoothSphere(0.015, 12);
-      petalGeo.scale(0.6, 1, 0.3);
-      const petal = new THREE.Mesh(petalGeo, petalMat);
-      const angle = (i / 5) * Math.PI * 2;
-      petal.position.set(Math.cos(angle) * 0.012, Math.sin(angle) * 0.012, 0);
-      petal.rotation.z = angle;
-      flowerGroup.add(petal);
-    }
-    
-    // Center
-    const centerGeo = this.createSmoothSphere(0.008, 12);
-    const centerMat = this.createToonMaterial(0xFFEB3B);
-    const center = new THREE.Mesh(centerGeo, centerMat);
-    center.position.z = 0.008;
-    flowerGroup.add(center);
-    
-    flowerGroup.position.set(0.05, 0.11, 0.04);
-    flowerGroup.rotation.x = -0.5;
-    this.head.add(flowerGroup);
-  }
-
-  addWaterDroplet() {
-    const dropGeo = this.createSmoothSphere(0.015, 16);
-    dropGeo.scale(0.8, 1.2, 0.8);
-    const dropMat = new THREE.MeshPhysicalMaterial({
-      color: 0x88DDFF,
-      transparent: true,
-      opacity: 0.7,
-      roughness: 0,
-      metalness: 0.1
-    });
-    const drop = new THREE.Mesh(dropGeo, dropMat);
-    drop.position.set(0, 0.13, 0.05);
-    this.head.add(drop);
-  }
-
-  addWings() {
-    const wingMat = this.createToonMaterial(this.data.colors.secondary);
-    
-    [-0.08, 0.08].forEach((x, i) => {
-      const wingShape = new THREE.Shape();
-      wingShape.moveTo(0, 0);
-      wingShape.quadraticCurveTo(0.06, 0.04, 0.09, 0);
-      wingShape.quadraticCurveTo(0.07, -0.02, 0, 0);
-      
-      const wingGeo = new THREE.ShapeGeometry(wingShape);
-      const wing = new THREE.Mesh(wingGeo, wingMat);
-      wing.scale.x = x > 0 ? 1 : -1;
-      wing.position.set(x, 0.07, -0.02);
-      wing.rotation.y = x > 0 ? -0.4 : 0.4;
-      this.body.add(wing);
-      
-      if (i === 0) this.parts.leftWing = wing;
-      else this.parts.rightWing = wing;
-    });
-  }
-
-  addOutlines() {
-    // Add outline effect to main meshes
-    const outlineMat = new THREE.MeshBasicMaterial({
-      color: 0x000000,
-      side: THREE.BackSide
-    });
-    
-    // Body outline
-    const bodyOutlineGeo = this.body.geometry.clone();
-    const bodyOutline = new THREE.Mesh(bodyOutlineGeo, outlineMat);
-    bodyOutline.scale.multiplyScalar(1.05);
-    this.body.add(bodyOutline);
-    
-    // Head outline
-    const headOutlineGeo = this.head.geometry.clone();
-    const headOutline = new THREE.Mesh(headOutlineGeo, outlineMat);
-    headOutline.scale.multiplyScalar(1.04);
-    this.head.add(headOutline);
+  addOutline(mesh) {
+    const outlineMat = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.BackSide });
+    const outlineGeo = mesh.geometry.clone();
+    const outline = new THREE.Mesh(outlineGeo, outlineMat);
+    outline.scale.multiplyScalar(1.04);
+    mesh.add(outline);
   }
 
   addShadow() {
-    const shadowGeo = new THREE.CircleGeometry(0.1, 32);
+    const shadowGeo = new THREE.CircleGeometry(0.12, 32);
     const shadowMat = new THREE.MeshBasicMaterial({
       color: 0x000000,
       transparent: true,
@@ -678,11 +450,7 @@ export class CreatureModel {
     this.group.add(this.shadow);
   }
 
-  createSmoothSphere(radius, segments, phiLength = Math.PI * 2) {
-    return new THREE.SphereGeometry(radius, segments, segments, 0, phiLength);
-  }
-
-  // === ANIMATION METHODS ===
+  // === ANIMATIONS ===
   
   scheduleNextAction() {
     const delay = 2500 + Math.random() * 3500;
@@ -703,13 +471,20 @@ export class CreatureModel {
     this.state = 'walking';
     this.isMoving = true;
     
+    // Play walk animation if available
+    if (this.animations['walk']) {
+      this.animations['idle']?.stop();
+      this.animations['walk'].play();
+    }
+    
     const angle = Math.random() * Math.PI * 2;
     const dist = 0.1 + Math.random() * (this.walkRadius - 0.1);
     this.walkTarget.set(Math.cos(angle) * dist, 0, Math.sin(angle) * dist);
     
-    const dir = this.walkTarget.clone().sub(this.root.position);
+    const target = this.root || this.group;
+    const dir = this.walkTarget.clone().sub(target.position);
     if (dir.length() > 0.01) {
-      this.root.rotation.y = Math.atan2(dir.x, dir.z);
+      target.rotation.y = Math.atan2(dir.x, dir.z);
     }
   }
 
@@ -722,6 +497,7 @@ export class CreatureModel {
   }
 
   blink() {
+    if (!this.parts.leftEye || !this.parts.rightEye) return;
     const dur = 120;
     const start = performance.now();
     const anim = () => {
@@ -752,28 +528,29 @@ export class CreatureModel {
   }
 
   lookAround() {
+    if (!this.head && !this.model) return;
     const target = (Math.random() - 0.5) * 0.6;
-    const start = this.head.rotation.y;
+    const obj = this.head || this.model;
+    const start = obj.rotation.y;
     const dur = 400;
     const startT = performance.now();
     const anim = () => {
       const t = Math.min((performance.now() - startT) / dur, 1);
       const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-      this.head.rotation.y = start + (target - start) * e;
+      obj.rotation.y = start + (target - start) * e;
       if (t < 1) requestAnimationFrame(anim);
-      else setTimeout(() => { this.head.rotation.y = 0; }, 600);
+      else setTimeout(() => { obj.rotation.y = 0; }, 600);
     };
     requestAnimationFrame(anim);
   }
 
   tailWag() {
+    if (!this.parts.tail) return;
     const dur = 500;
     const start = performance.now();
     const anim = () => {
       const t = (performance.now() - start) / dur;
-      if (this.parts.tail) {
-        this.parts.tail.rotation.y = Math.sin(t * Math.PI * 6) * 0.3 * (1 - t);
-      }
+      this.parts.tail.rotation.y = Math.sin(t * Math.PI * 6) * 0.3 * (1 - t);
       if (t < 1) requestAnimationFrame(anim);
     };
     requestAnimationFrame(anim);
@@ -786,9 +563,8 @@ export class CreatureModel {
     this.state = 'eating';
     this.isMoving = false;
     
-    this.smile.visible = false;
-    this.openMouth.visible = true;
-    this.tongue.visible = true;
+    if (this.smile) this.smile.visible = false;
+    if (this.openMouth) this.openMouth.visible = true;
     
     this.spawnFoodParticles();
     
@@ -800,11 +576,17 @@ export class CreatureModel {
       const chompPhase = (elapsed / 350) % 1;
       const chomp = Math.sin(chompPhase * Math.PI);
       
-      this.head.position.y = 0.13 - chomp * 0.025;
-      this.openMouth.scale.y = 0.5 + chomp * 0.5;
+      if (this.head) {
+        this.head.position.y = 0.14 - chomp * 0.025;
+      }
+      if (this.openMouth) {
+        this.openMouth.scale.y = 0.5 + chomp * 0.5;
+      }
       
-      const squish = 1 + Math.sin(elapsed * 0.02) * 0.04;
-      this.body.scale.set(squish, 1 / squish, squish);
+      if (this.body) {
+        const squish = 1 + Math.sin(elapsed * 0.02) * 0.04;
+        this.body.scale.set(squish, 1 / squish, squish);
+      }
       
       if (t < 1) requestAnimationFrame(anim);
       else this.finishEating();
@@ -813,11 +595,10 @@ export class CreatureModel {
   }
 
   finishEating() {
-    this.openMouth.visible = false;
-    this.tongue.visible = false;
-    this.smile.visible = true;
-    this.body.scale.set(1, 1, 1);
-    this.head.position.y = 0.13;
+    if (this.openMouth) this.openMouth.visible = false;
+    if (this.smile) this.smile.visible = true;
+    if (this.body) this.body.scale.set(1, 1, 1);
+    if (this.head) this.head.position.y = 0.14;
     this.playHappyBounce();
     setTimeout(() => { this.state = 'idle'; }, 400);
   }
@@ -832,9 +613,10 @@ export class CreatureModel {
         });
         const p = new THREE.Mesh(geo, mat);
         
-        const sx = this.root.position.x + (Math.random() - 0.5) * 0.08;
+        const base = this.root || this.group;
+        const sx = base.position.x + (Math.random() - 0.5) * 0.08;
         const sy = 0.25;
-        const sz = this.root.position.z + 0.08;
+        const sz = base.position.z + 0.08;
         p.position.set(sx, sy, sz);
         this.group.add(p);
         
@@ -860,18 +642,19 @@ export class CreatureModel {
     if (this.state !== 'idle') return;
     this.state = 'happy';
     
-    this.leftBlush.material.opacity = 0.85;
-    this.rightBlush.material.opacity = 0.85;
+    if (this.leftBlush) this.leftBlush.material.opacity = 0.85;
+    if (this.rightBlush) this.rightBlush.material.opacity = 0.85;
     
     this.spawnHearts();
     
     const dur = 1100;
     const start = performance.now();
+    const base = this.root || this.group;
     const anim = () => {
       const elapsed = performance.now() - start;
       const t = elapsed / dur;
       
-      this.root.rotation.z = Math.sin(elapsed * 0.008) * 0.08;
+      base.rotation.z = Math.sin(elapsed * 0.008) * 0.08;
       
       [this.parts.leftEye, this.parts.rightEye].forEach(eye => {
         if (eye?.userData?.lid) eye.userData.lid.scale.y = 0.35;
@@ -888,12 +671,13 @@ export class CreatureModel {
   }
 
   finishLove() {
-    this.root.rotation.z = 0;
+    const base = this.root || this.group;
+    base.rotation.z = 0;
     [this.parts.leftEye, this.parts.rightEye].forEach(eye => {
       if (eye?.userData?.lid) eye.userData.lid.scale.y = 0.01;
     });
-    this.leftBlush.material.opacity = 0.6;
-    this.rightBlush.material.opacity = 0.6;
+    if (this.leftBlush) this.leftBlush.material.opacity = 0.5;
+    if (this.rightBlush) this.rightBlush.material.opacity = 0.5;
     this.state = 'idle';
   }
 
@@ -918,8 +702,9 @@ export class CreatureModel {
     });
     const heart = new THREE.Mesh(geo, mat);
     
-    const sx = this.root.position.x + (Math.random() - 0.5) * 0.12;
-    heart.position.set(sx, 0.22, this.root.position.z + 0.08);
+    const base = this.root || this.group;
+    const sx = base.position.x + (Math.random() - 0.5) * 0.12;
+    heart.position.set(sx, 0.22, base.position.z + 0.08);
     heart.scale.setScalar(1.4);
     this.group.add(heart);
     
@@ -944,13 +729,14 @@ export class CreatureModel {
     if (this.state !== 'idle') return;
     this.state = 'playing';
     
-    this.smile.visible = false;
-    this.openMouth.visible = true;
+    if (this.smile) this.smile.visible = false;
+    if (this.openMouth) this.openMouth.visible = true;
     
     this.spawnStars();
     
     let jumpCount = 0;
     const maxJumps = 3;
+    const base = this.root || this.group;
     
     const doJump = () => {
       const start = performance.now();
@@ -960,9 +746,11 @@ export class CreatureModel {
         const t = Math.min((performance.now() - start) / jumpDur, 1);
         const jp = Math.sin(t * Math.PI);
         
-        this.root.position.y = jp * 0.07;
-        this.body.scale.set(1 - jp * 0.15, 1 + jp * 0.25, 1 - jp * 0.15);
-        this.root.rotation.y += 0.04;
+        base.position.y = jp * 0.07;
+        if (this.body) {
+          this.body.scale.set(1 - jp * 0.15, 1 + jp * 0.25, 1 - jp * 0.15);
+        }
+        base.rotation.y += 0.04;
         
         if (this.parts.leftArm) {
           const arm = Math.sin((performance.now() - start) * 0.02) * 0.4;
@@ -983,14 +771,15 @@ export class CreatureModel {
   }
 
   finishPlay() {
-    this.body.scale.set(1, 1, 1);
-    this.root.position.y = 0;
+    const base = this.root || this.group;
+    if (this.body) this.body.scale.set(1, 1, 1);
+    base.position.y = 0;
     if (this.parts.leftArm) {
       this.parts.leftArm.rotation.z = 0.5;
       this.parts.rightArm.rotation.z = -0.5;
     }
-    this.openMouth.visible = false;
-    this.smile.visible = true;
+    if (this.openMouth) this.openMouth.visible = false;
+    if (this.smile) this.smile.visible = true;
     this.playHappyBounce();
     setTimeout(() => { this.state = 'idle'; }, 400);
   }
@@ -1010,10 +799,11 @@ export class CreatureModel {
     });
     const star = new THREE.Mesh(geo, mat);
     
+    const base = this.root || this.group;
     const angle = Math.random() * Math.PI * 2;
     const dist = 0.05 + Math.random() * 0.08;
-    const sx = this.root.position.x + Math.cos(angle) * dist;
-    const sz = this.root.position.z + Math.sin(angle) * dist;
+    const sx = base.position.x + Math.cos(angle) * dist;
+    const sz = base.position.z + Math.sin(angle) * dist;
     star.position.set(sx, 0.15, sz);
     this.group.add(star);
     
@@ -1037,9 +827,10 @@ export class CreatureModel {
   playHappyBounce() {
     const dur = 450;
     const start = performance.now();
+    const base = this.root || this.group;
     const anim = () => {
       const t = Math.min((performance.now() - start) / dur, 1);
-      this.root.position.y = Math.sin(t * Math.PI * 2) * (1 - t) * 0.025;
+      base.position.y = Math.sin(t * Math.PI * 2) * (1 - t) * 0.025;
       if (t < 1) requestAnimationFrame(anim);
     };
     requestAnimationFrame(anim);
@@ -1050,67 +841,87 @@ export class CreatureModel {
   update(deltaTime) {
     this.animationTime += deltaTime;
     
+    // Update animation mixer for GLB models
+    if (this.mixer) {
+      this.mixer.update(deltaTime);
+    }
+    
     if (this.state === 'walking' && this.isMoving) {
       this.updateWalking(deltaTime);
     }
     
     this.updateIdle(deltaTime);
-    this.updateSpecialFx(deltaTime);
     
     if (this.shadow) {
-      this.shadow.position.x = this.root.position.x;
-      this.shadow.position.z = this.root.position.z;
+      const base = this.root || this.group;
+      this.shadow.position.x = base.position.x;
+      this.shadow.position.z = base.position.z;
       const s = 0.9 + Math.sin(this.animationTime * 2) * 0.08;
       this.shadow.scale.setScalar(s);
     }
   }
 
   updateWalking(deltaTime) {
-    const dir = this.walkTarget.clone().sub(this.root.position);
+    const base = this.root || this.group;
+    const dir = this.walkTarget.clone().sub(base.position);
     const dist = dir.length();
     
     if (dist < 0.015) {
       this.isMoving = false;
       this.state = 'idle';
+      
+      // Switch back to idle animation
+      if (this.animations['walk']) {
+        this.animations['walk'].stop();
+        this.animations['idle']?.play();
+      }
       return;
     }
     
     dir.normalize();
-    this.root.position.x += dir.x * this.walkSpeed * deltaTime;
-    this.root.position.z += dir.z * this.walkSpeed * deltaTime;
+    base.position.x += dir.x * this.walkSpeed * deltaTime;
+    base.position.z += dir.z * this.walkSpeed * deltaTime;
     
-    const cycle = this.animationTime * 10;
-    this.root.position.y = Math.abs(Math.sin(cycle)) * 0.012;
-    
-    if (this.parts.leftLeg && this.parts.rightLeg) {
-      this.parts.leftLeg.rotation.x = Math.sin(cycle) * 0.25;
-      this.parts.rightLeg.rotation.x = Math.sin(cycle + Math.PI) * 0.25;
-    }
-    
-    if (this.parts.leftArm && this.parts.rightArm) {
-      this.parts.leftArm.rotation.x = Math.sin(cycle + Math.PI) * 0.15;
-      this.parts.rightArm.rotation.x = Math.sin(cycle) * 0.15;
-    }
-    
-    this.body.rotation.z = Math.sin(cycle) * 0.04;
-    
-    if (this.parts.leftEar && this.parts.rightEar) {
-      const eb = Math.sin(cycle * 2) * 0.08;
-      const baseL = this.data.id === 'aquapup' ? 0.9 : 0.2;
-      const baseR = this.data.id === 'aquapup' ? -0.9 : -0.2;
-      this.parts.leftEar.rotation.z = baseL + eb;
-      this.parts.rightEar.rotation.z = baseR - eb;
+    // Procedural walk animation for fallback model
+    if (!this.mixer) {
+      const cycle = this.animationTime * 10;
+      base.position.y = Math.abs(Math.sin(cycle)) * 0.012;
+      
+      if (this.parts.leftLeg && this.parts.rightLeg) {
+        this.parts.leftLeg.rotation.x = Math.sin(cycle) * 0.25;
+        this.parts.rightLeg.rotation.x = Math.sin(cycle + Math.PI) * 0.25;
+      }
+      
+      if (this.parts.leftArm && this.parts.rightArm) {
+        this.parts.leftArm.rotation.x = Math.sin(cycle + Math.PI) * 0.15;
+        this.parts.rightArm.rotation.x = Math.sin(cycle) * 0.15;
+      }
+      
+      if (this.body) {
+        this.body.rotation.z = Math.sin(cycle) * 0.04;
+      }
+      
+      if (this.parts.leftEar && this.parts.rightEar) {
+        const eb = Math.sin(cycle * 2) * 0.08;
+        const baseL = this.data.id === 'aquapup' ? 0.85 : 0.2;
+        const baseR = this.data.id === 'aquapup' ? -0.85 : -0.2;
+        this.parts.leftEar.rotation.z = baseL + eb;
+        this.parts.rightEar.rotation.z = baseR - eb;
+      }
     }
   }
 
   updateIdle(deltaTime) {
+    if (this.mixer) return; // GLB model handles its own idle animation
+    
     const breathe = Math.sin(this.animationTime * 1.8) * 0.012;
-    if (this.state === 'idle') {
+    if (this.state === 'idle' && this.body) {
       this.body.scale.set(1 + breathe * 0.25, 1 + breathe, 1 + breathe * 0.25);
     }
     
+    const base = this.root || this.group;
     if (this.state === 'idle' && !this.isMoving) {
-      this.root.position.y = Math.sin(this.animationTime * 1.4) * 0.006;
+      base.position.y = Math.sin(this.animationTime * 1.4) * 0.006;
     }
     
     if (this.parts.tail && this.state !== 'playing') {
@@ -1120,26 +931,6 @@ export class CreatureModel {
     }
     
     if (Math.random() < 0.002 && this.state === 'idle') this.blink();
-    
-    if (this.parts.leftWing && this.parts.rightWing) {
-      const fs = this.state === 'playing' ? 18 : 5;
-      const fa = this.state === 'playing' ? 0.5 : 0.15;
-      const flap = Math.sin(this.animationTime * fs) * fa;
-      this.parts.leftWing.rotation.z = -flap - 0.2;
-      this.parts.rightWing.rotation.z = flap + 0.2;
-    }
-  }
-
-  updateSpecialFx(deltaTime) {
-    if (this.stars) {
-      this.stars.forEach(star => {
-        star.userData.angle += deltaTime * star.userData.speed;
-        star.position.x = this.root.position.x + Math.cos(star.userData.angle) * star.userData.radius;
-        star.position.z = this.root.position.z + Math.sin(star.userData.angle) * star.userData.radius;
-        star.position.y = 0.24 + Math.sin(this.animationTime * 2.5 + star.userData.yOffset) * 0.025;
-        star.rotation.y = this.animationTime * 2.5;
-      });
-    }
   }
 
   getObject() { return this.group; }
