@@ -1,521 +1,430 @@
 import * as THREE from 'three';
 import { CreatureModel } from './CreatureModel.js';
 
-/**
- * AR Scene Manager using WebXR
- * Handles AR session, plane detection, and creature placement
- */
 export class ARScene {
-  constructor(container, creatureData) {
+  constructor(container, creatureData, callbacks = {}) {
     this.container = container;
     this.creatureData = creatureData;
-    this.creature = null;
-    this.isARSupported = false;
-    this.isARActive = false;
-    this.isFallbackMode = false;
+    this.callbacks = callbacks;
+    
+    this.scene = null;
+    this.camera = null;
+    this.renderer = null;
+    this.creatureModel = null;
+    
+    this.xrSession = null;
+    this.xrRefSpace = null;
     this.hitTestSource = null;
-    this.reticle = null;
+    
+    this.isFallbackMode = false;
     this.isCreaturePlaced = false;
     
-    this.onCreaturePlaced = null;
-    this.onARStarted = null;
-    this.onARError = null;
+    this.reticle = null;
+    this.clock = new THREE.Clock();
     
-    this.init();
+    // Touch controls for fallback
+    this.touchState = {
+      isDragging: false,
+      lastX: 0,
+      lastY: 0,
+      rotationX: 0,
+      rotationY: 0,
+      zoom: 1
+    };
   }
 
   async init() {
-    // Setup renderer
-    this.renderer = new THREE.WebGLRenderer({ 
-      antialias: true, 
+    this.createScene();
+    this.createLighting();
+    this.createReticle();
+    
+    // Check WebXR support
+    const xrSupported = await this.checkXRSupport();
+    
+    if (xrSupported) {
+      await this.startXRSession();
+    } else {
+      await this.startFallbackMode();
+    }
+    
+    this.animate();
+  }
+
+  createScene() {
+    // Scene
+    this.scene = new THREE.Scene();
+    
+    // Camera
+    this.camera = new THREE.PerspectiveCamera(
+      70,
+      window.innerWidth / window.innerHeight,
+      0.01,
+      100
+    );
+    this.camera.position.set(0, 0.5, 1);
+    
+    // Renderer
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: true,
       alpha: true,
       powerPreference: 'high-performance'
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.xr.enabled = true;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1;
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.xr.enabled = true;
+    this.renderer.setClearColor(0x000000, 0);
     
     this.container.appendChild(this.renderer.domElement);
-
-    // Setup scene
-    this.scene = new THREE.Scene();
-
-    // Setup camera
-    this.camera = new THREE.PerspectiveCamera(
-      70, 
-      window.innerWidth / window.innerHeight, 
-      0.01, 
-      20
-    );
-
-    // Lighting
-    this.setupLighting();
-
-    // Create reticle for placement
-    this.createReticle();
-
-    // Create creature
-    this.creature = new CreatureModel(this.creatureData);
-
-    // Check AR support
-    await this.checkARSupport();
-
+    
     // Handle resize
     window.addEventListener('resize', () => this.onResize());
-
-    // Clock for animations
-    this.clock = new THREE.Clock();
   }
 
-  setupLighting() {
+  createLighting() {
     // Ambient light
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-    this.scene.add(ambientLight);
-
+    const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+    this.scene.add(ambient);
+    
     // Main directional light (sun)
-    this.mainLight = new THREE.DirectionalLight(0xffffff, 1);
-    this.mainLight.position.set(5, 10, 5);
-    this.mainLight.castShadow = true;
-    this.mainLight.shadow.mapSize.width = 1024;
-    this.mainLight.shadow.mapSize.height = 1024;
-    this.mainLight.shadow.camera.near = 0.1;
-    this.mainLight.shadow.camera.far = 20;
-    this.mainLight.shadow.camera.left = -2;
-    this.mainLight.shadow.camera.right = 2;
-    this.mainLight.shadow.camera.top = 2;
-    this.mainLight.shadow.camera.bottom = -2;
-    this.scene.add(this.mainLight);
-
+    const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+    sun.position.set(5, 10, 5);
+    sun.castShadow = true;
+    sun.shadow.mapSize.width = 1024;
+    sun.shadow.mapSize.height = 1024;
+    this.scene.add(sun);
+    
     // Fill light
-    const fillLight = new THREE.DirectionalLight(0x88ccff, 0.3);
-    fillLight.position.set(-5, 5, -5);
-    this.scene.add(fillLight);
-
+    const fill = new THREE.DirectionalLight(0x9090ff, 0.3);
+    fill.position.set(-5, 3, -5);
+    this.scene.add(fill);
+    
     // Rim light
-    const rimLight = new THREE.DirectionalLight(0xffaa88, 0.2);
-    rimLight.position.set(0, 5, -10);
-    this.scene.add(rimLight);
-
-    // Hemisphere light for ambient
-    const hemiLight = new THREE.HemisphereLight(0x88ccff, 0x444422, 0.4);
-    this.scene.add(hemiLight);
+    const rim = new THREE.DirectionalLight(0xffffcc, 0.4);
+    rim.position.set(0, 5, -10);
+    this.scene.add(rim);
+    
+    // Hemisphere light for natural feel
+    const hemi = new THREE.HemisphereLight(0x87CEEB, 0x98D98E, 0.4);
+    this.scene.add(hemi);
   }
 
   createReticle() {
-    // Ring reticle
-    const ringGeom = new THREE.RingGeometry(0.1, 0.12, 32);
-    ringGeom.rotateX(-Math.PI / 2);
+    // Placement reticle
+    const geometry = new THREE.RingGeometry(0.08, 0.1, 32);
+    geometry.rotateX(-Math.PI / 2);
     
-    const ringMat = new THREE.MeshBasicMaterial({ 
-      color: 0xFF6B9D,
+    const material = new THREE.MeshBasicMaterial({
+      color: 0x4ECDC4,
       transparent: true,
-      opacity: 0.8,
-      side: THREE.DoubleSide
+      opacity: 0.8
     });
     
-    this.reticle = new THREE.Mesh(ringGeom, ringMat);
+    this.reticle = new THREE.Mesh(geometry, material);
     this.reticle.visible = false;
     this.reticle.matrixAutoUpdate = false;
     this.scene.add(this.reticle);
-
-    // Animated inner circle
-    const innerGeom = new THREE.CircleGeometry(0.08, 32);
-    innerGeom.rotateX(-Math.PI / 2);
-    
-    const innerMat = new THREE.MeshBasicMaterial({ 
-      color: 0xFF6B9D,
-      transparent: true,
-      opacity: 0.3
-    });
-    
-    this.reticleInner = new THREE.Mesh(innerGeom, innerMat);
-    this.reticle.add(this.reticleInner);
   }
 
-  async checkARSupport() {
-    // Check if running on iOS
-    this.isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  async checkXRSupport() {
+    if (!navigator.xr) return false;
     
-    if ('xr' in navigator) {
-      try {
-        // Check for immersive-ar support
-        this.isARSupported = await navigator.xr.isSessionSupported('immersive-ar');
-        console.log('WebXR AR supported:', this.isARSupported);
-      } catch (e) {
-        console.log('XR support check failed:', e);
-        this.isARSupported = false;
-      }
-    } else {
-      console.log('WebXR not available in navigator');
-      this.isARSupported = false;
-    }
-    
-    // iOS Safari has limited WebXR support
-    // We'll use fallback mode but with AR Quick Look for iOS
-    if (this.isIOS && !this.isARSupported) {
-      console.log('iOS detected, WebXR not fully supported, using fallback');
-    }
-    
-    return this.isARSupported;
-  }
-
-  async startAR() {
-    if (this.isARSupported) {
-      try {
-        await this.startWebXR();
-      } catch (error) {
-        console.error('WebXR start failed:', error);
-        this.startFallbackMode();
-      }
-    } else {
-      this.startFallbackMode();
-    }
-  }
-
-  async startWebXR() {
-    // Required features for AR
-    const sessionInit = {
-      requiredFeatures: ['local'],
-      optionalFeatures: ['hit-test', 'dom-overlay', 'light-estimation'],
-      domOverlay: { root: document.body }
-    };
-
     try {
-      console.log('Requesting XR session...');
-      const session = await navigator.xr.requestSession('immersive-ar', sessionInit);
-      console.log('XR session started:', session);
-      
-      this.renderer.xr.setReferenceSpaceType('local');
-      await this.renderer.xr.setSession(session);
+      const supported = await navigator.xr.isSessionSupported('immersive-ar');
+      return supported;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async startXRSession() {
+    try {
+      const session = await navigator.xr.requestSession('immersive-ar', {
+        requiredFeatures: ['local'],
+        optionalFeatures: ['hit-test', 'dom-overlay'],
+        domOverlay: { root: document.body }
+      });
       
       this.xrSession = session;
-      this.isARActive = true;
-
-      // Get reference space
-      const referenceSpace = await session.requestReferenceSpace('local');
+      this.renderer.xr.setSession(session);
       
-      // Try to get hit test source (optional - might not be available on all devices)
+      session.addEventListener('end', () => this.onSessionEnd());
+      
+      // Setup hit testing
+      const viewerSpace = await session.requestReferenceSpace('viewer');
+      this.xrRefSpace = await session.requestReferenceSpace('local');
+      
       try {
-        const viewerSpace = await session.requestReferenceSpace('viewer');
         this.hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
-        console.log('Hit test source created');
-      } catch (hitTestError) {
-        console.log('Hit test not available:', hitTestError);
-        // Place creature immediately if hit test not available
-        setTimeout(() => {
-          if (!this.isCreaturePlaced) {
-            this.placeCreature(new THREE.Vector3(0, 0, -1));
-          }
-        }, 1000);
+      } catch (e) {
+        console.log('Hit test not available');
       }
-
-      session.addEventListener('end', () => {
-        console.log('XR session ended');
-        this.isARActive = false;
-        this.hitTestSource = null;
-      });
-
-      // Start render loop
-      this.renderer.setAnimationLoop((time, frame) => this.renderXR(time, frame));
-
-      if (this.onARStarted) this.onARStarted(false);
+      
+      // Setup tap to place
+      session.addEventListener('select', () => this.onSelect());
       
     } catch (error) {
-      console.error('Failed to start WebXR:', error);
-      throw error;
+      console.error('XR session failed:', error);
+      await this.startFallbackMode();
     }
   }
 
   async startFallbackMode() {
     this.isFallbackMode = true;
-    this.isARActive = true;
-
-    // Try to use camera as background on mobile
-    if (this.isIOS || /Android/i.test(navigator.userAgent)) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' }
-        });
-        
-        // Create video element for camera feed
-        const video = document.createElement('video');
-        video.srcObject = stream;
-        video.setAttribute('playsinline', '');
-        video.setAttribute('autoplay', '');
-        video.style.cssText = `
-          position: fixed;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          z-index: -1;
-        `;
-        document.body.insertBefore(video, document.body.firstChild);
-        await video.play();
-        
-        this.cameraVideo = video;
-        this.cameraStream = stream;
-        
-        // Make renderer transparent
-        this.renderer.setClearColor(0x000000, 0);
-        
-        console.log('Camera background enabled');
-      } catch (err) {
-        console.log('Could not access camera for background:', err);
-        // Use solid background instead
-        this.scene.background = new THREE.Color(0x87CEEB);
-        this.addGroundPlane();
-      }
-    } else {
-      // Desktop fallback with ground plane
-      this.scene.background = new THREE.Color(0x87CEEB);
-      this.addGroundPlane();
+    
+    // Set background color
+    this.renderer.setClearColor(0x1A1D2E, 1);
+    
+    // Try to get camera
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      });
+      
+      // Create video element
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      video.playsInline = true;
+      video.autoplay = true;
+      video.muted = true;
+      
+      video.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        z-index: -1;
+      `;
+      
+      this.container.insertBefore(video, this.renderer.domElement);
+      
+      await video.play();
+      
+      // Make renderer transparent
+      this.renderer.setClearColor(0x000000, 0);
+      
+    } catch (e) {
+      console.log('Camera not available, using solid background');
+      
+      // Add gradient background
+      this.addGradientBackground();
     }
-
-    // Setup camera for fallback mode
-    this.camera.position.set(0, 0.5, 1.5);
-    this.camera.lookAt(0, 0.2, 0);
-
-    // Place creature immediately in fallback mode
+    
+    // Adjust camera for fallback
+    this.camera.position.set(0, 0.3, 0.8);
+    this.camera.lookAt(0, 0.15, 0);
+    
+    // Place creature immediately
     this.placeCreature(new THREE.Vector3(0, 0, 0));
-
-    // Setup orbit controls simulation
-    this.setupFallbackControls();
-
-    // Start render loop
-    this.renderer.setAnimationLoop((time) => this.renderFallback(time));
-
-    if (this.onARStarted) this.onARStarted(true);
+    
+    // Setup touch controls
+    this.setupTouchControls();
+    
+    // Notify callback
+    if (this.callbacks.onError) {
+      this.callbacks.onError(new Error('Fallback mode'));
+    }
   }
 
-  addGroundPlane() {
-    // Add ground plane
-    const groundGeom = new THREE.PlaneGeometry(10, 10);
-    const groundMat = new THREE.MeshStandardMaterial({ 
-      color: 0x88aa88,
+  addGradientBackground() {
+    // Create a gradient plane behind the scene
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    
+    const gradient = ctx.createLinearGradient(0, 0, 0, 512);
+    gradient.addColorStop(0, '#2D1B4E');
+    gradient.addColorStop(0.5, '#1A1D2E');
+    gradient.addColorStop(1, '#0D1117');
+    
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 512, 512);
+    
+    const texture = new THREE.CanvasTexture(canvas);
+    const bgGeom = new THREE.PlaneGeometry(5, 5);
+    const bgMat = new THREE.MeshBasicMaterial({ map: texture });
+    const bgMesh = new THREE.Mesh(bgGeom, bgMat);
+    bgMesh.position.z = -2;
+    this.scene.add(bgMesh);
+    
+    // Add floor
+    const floorGeom = new THREE.CircleGeometry(1, 64);
+    const floorMat = new THREE.MeshStandardMaterial({
+      color: 0x2A2D3E,
       roughness: 0.8,
       metalness: 0.1
     });
-    const ground = new THREE.Mesh(groundGeom, groundMat);
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    this.scene.add(ground);
-
-    // Add grid helper
-    const grid = new THREE.GridHelper(10, 20, 0x666666, 0x444444);
-    grid.position.y = 0.001;
-    this.scene.add(grid);
+    const floor = new THREE.Mesh(floorGeom, floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -0.001;
+    floor.receiveShadow = true;
+    this.scene.add(floor);
   }
 
-  setupFallbackControls() {
-    let isDragging = false;
-    let previousX = 0;
-    let previousY = 0;
-    let rotationY = 0;
-    let rotationX = 0.3;
-    let distance = 1.5;
-
-    const updateCamera = () => {
-      this.camera.position.x = Math.sin(rotationY) * Math.cos(rotationX) * distance;
-      this.camera.position.y = Math.sin(rotationX) * distance + 0.3;
-      this.camera.position.z = Math.cos(rotationY) * Math.cos(rotationX) * distance;
-      this.camera.lookAt(0, 0.2, 0);
-    };
-
-    const onPointerDown = (e) => {
-      // Ignore if clicking on UI
-      if (e.target.closest('.bottom-bar') || e.target.closest('.top-bar')) return;
+  setupTouchControls() {
+    const el = this.renderer.domElement;
+    
+    el.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        this.touchState.isDragging = true;
+        this.touchState.lastX = e.touches[0].clientX;
+        this.touchState.lastY = e.touches[0].clientY;
+      }
+    });
+    
+    el.addEventListener('touchmove', (e) => {
+      if (!this.touchState.isDragging || !this.creatureModel) return;
       
-      isDragging = true;
-      previousX = e.clientX || e.touches?.[0]?.clientX || 0;
-      previousY = e.clientY || e.touches?.[0]?.clientY || 0;
-    };
-
-    const onPointerMove = (e) => {
-      if (!isDragging) return;
+      if (e.touches.length === 1) {
+        const deltaX = e.touches[0].clientX - this.touchState.lastX;
+        const deltaY = e.touches[0].clientY - this.touchState.lastY;
+        
+        // Rotate creature
+        this.touchState.rotationY += deltaX * 0.01;
+        
+        this.touchState.lastX = e.touches[0].clientX;
+        this.touchState.lastY = e.touches[0].clientY;
+      } else if (e.touches.length === 2) {
+        // Pinch to zoom
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        
+        if (this.touchState.lastPinchDist) {
+          const delta = dist - this.touchState.lastPinchDist;
+          this.touchState.zoom = Math.max(0.5, Math.min(2, this.touchState.zoom + delta * 0.005));
+          this.camera.position.z = 0.8 / this.touchState.zoom;
+        }
+        
+        this.touchState.lastPinchDist = dist;
+      }
+    });
+    
+    el.addEventListener('touchend', () => {
+      this.touchState.isDragging = false;
+      this.touchState.lastPinchDist = null;
+    });
+    
+    // Mouse controls for desktop
+    el.addEventListener('mousedown', (e) => {
+      this.touchState.isDragging = true;
+      this.touchState.lastX = e.clientX;
+      this.touchState.lastY = e.clientY;
+    });
+    
+    el.addEventListener('mousemove', (e) => {
+      if (!this.touchState.isDragging || !this.creatureModel) return;
       
-      const currentX = e.clientX || e.touches?.[0]?.clientX || 0;
-      const currentY = e.clientY || e.touches?.[0]?.clientY || 0;
+      const deltaX = e.clientX - this.touchState.lastX;
+      this.touchState.rotationY += deltaX * 0.01;
       
-      const deltaX = currentX - previousX;
-      const deltaY = currentY - previousY;
-      
-      rotationY += deltaX * 0.01;
-      rotationX = Math.max(0.1, Math.min(1.2, rotationX + deltaY * 0.01));
-      
-      previousX = currentX;
-      previousY = currentY;
-      
-      updateCamera();
-    };
+      this.touchState.lastX = e.clientX;
+      this.touchState.lastY = e.clientY;
+    });
+    
+    el.addEventListener('mouseup', () => {
+      this.touchState.isDragging = false;
+    });
+    
+    el.addEventListener('wheel', (e) => {
+      this.touchState.zoom = Math.max(0.5, Math.min(2, this.touchState.zoom - e.deltaY * 0.001));
+      this.camera.position.z = 0.8 / this.touchState.zoom;
+    });
+  }
 
-    const onPointerUp = () => {
-      isDragging = false;
-    };
-
-    const onWheel = (e) => {
-      distance = Math.max(0.5, Math.min(5, distance + e.deltaY * 0.001));
-      updateCamera();
-    };
-
-    this.container.addEventListener('mousedown', onPointerDown);
-    this.container.addEventListener('mousemove', onPointerMove);
-    this.container.addEventListener('mouseup', onPointerUp);
-    this.container.addEventListener('touchstart', onPointerDown);
-    this.container.addEventListener('touchmove', onPointerMove);
-    this.container.addEventListener('touchend', onPointerUp);
-    this.container.addEventListener('wheel', onWheel);
-
-    updateCamera();
+  onSelect() {
+    if (this.isCreaturePlaced) return;
+    if (!this.reticle.visible) return;
+    
+    const position = new THREE.Vector3();
+    position.setFromMatrixPosition(this.reticle.matrix);
+    
+    this.placeCreature(position);
   }
 
   placeCreature(position) {
     if (this.isCreaturePlaced) return;
-
-    const creatureObj = this.creature.getObject();
-    creatureObj.position.copy(position);
-    creatureObj.position.y = 0;
-    this.scene.add(creatureObj);
+    
+    // Create creature model
+    this.creatureModel = new CreatureModel(this.creatureData);
+    this.creatureModel.setScale(1.5);
+    
+    const obj = this.creatureModel.getObject();
+    obj.position.copy(position);
+    this.scene.add(obj);
     
     this.isCreaturePlaced = true;
     this.reticle.visible = false;
-
-    // Entrance animation
-    creatureObj.scale.set(0, 0, 0);
-    this.animateScale(creatureObj, 1, 500);
-
-    if (this.onCreaturePlaced) this.onCreaturePlaced();
+    
+    // Callback
+    if (this.callbacks.onPlaced) {
+      this.callbacks.onPlaced();
+    }
   }
 
-  animateScale(object, targetScale, duration) {
-    const startTime = performance.now();
-    const startScale = object.scale.x;
-    
-    const animate = (currentTime) => {
-      const elapsed = currentTime - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      
-      // Elastic easing
-      const elastic = progress === 1 
-        ? 1 
-        : Math.pow(2, -10 * progress) * Math.sin((progress * 10 - 0.75) * (2 * Math.PI) / 3) + 1;
-      
-      const scale = startScale + (targetScale - startScale) * elastic;
-      object.scale.setScalar(scale);
-      
-      if (progress < 1) {
-        requestAnimationFrame(animate);
-      }
-    };
-    
-    requestAnimationFrame(animate);
+  onSessionEnd() {
+    this.xrSession = null;
+    this.hitTestSource = null;
   }
 
-  renderXR(time, frame) {
+  onResize() {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    
+    this.camera.aspect = width / height;
+    this.camera.updateProjectionMatrix();
+    
+    this.renderer.setSize(width, height);
+  }
+
+  animate() {
+    this.renderer.setAnimationLoop((time, frame) => {
+      this.update(frame);
+      this.render();
+    });
+  }
+
+  update(frame) {
     const deltaTime = this.clock.getDelta();
-
-    // Hit test for reticle placement
-    if (!this.isCreaturePlaced && this.hitTestSource && frame) {
+    
+    // Update creature
+    if (this.creatureModel) {
+      this.creatureModel.update(deltaTime);
+      
+      // Apply touch rotation in fallback mode
+      if (this.isFallbackMode) {
+        const obj = this.creatureModel.getObject();
+        obj.rotation.y = this.touchState.rotationY;
+      }
+    }
+    
+    // Update hit test in XR mode
+    if (frame && this.hitTestSource && !this.isCreaturePlaced) {
       const hitTestResults = frame.getHitTestResults(this.hitTestSource);
       
       if (hitTestResults.length > 0) {
         const hit = hitTestResults[0];
-        const referenceSpace = this.renderer.xr.getReferenceSpace();
-        const pose = hit.getPose(referenceSpace);
+        const pose = hit.getPose(this.xrRefSpace);
         
         if (pose) {
           this.reticle.visible = true;
           this.reticle.matrix.fromArray(pose.transform.matrix);
-          
-          // Animate reticle
-          const scale = 1 + Math.sin(time * 0.003) * 0.1;
-          this.reticleInner.scale.setScalar(scale);
         }
       } else {
         this.reticle.visible = false;
       }
     }
+  }
 
-    // Update creature
-    if (this.creature && this.isCreaturePlaced) {
-      this.creature.update(deltaTime);
-      
-      // Make creature look at camera
-      const cameraPos = new THREE.Vector3();
-      this.camera.getWorldPosition(cameraPos);
-      this.creature.lookAt(cameraPos);
-    }
-
+  render() {
     this.renderer.render(this.scene, this.camera);
-  }
-
-  renderFallback(time) {
-    const deltaTime = this.clock.getDelta();
-
-    // Update creature
-    if (this.creature && this.isCreaturePlaced) {
-      this.creature.update(deltaTime);
-    }
-
-    this.renderer.render(this.scene, this.camera);
-  }
-
-  onResize() {
-    this.camera.aspect = window.innerWidth / window.innerHeight;
-    this.camera.updateProjectionMatrix();
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
-  }
-
-  // Tap to place in AR mode
-  handleTap(x, y) {
-    if (this.isFallbackMode) return;
-    
-    if (!this.isCreaturePlaced && this.reticle.visible) {
-      const position = new THREE.Vector3();
-      position.setFromMatrixPosition(this.reticle.matrix);
-      this.placeCreature(position);
-    }
-  }
-
-  // Interaction methods
-  feedCreature() {
-    if (this.creature) {
-      this.creature.playHappy();
-      return this.creatureData.sounds.feed[
-        Math.floor(Math.random() * this.creatureData.sounds.feed.length)
-      ];
-    }
-  }
-
-  petCreature() {
-    if (this.creature) {
-      this.creature.playHappy();
-      return this.creatureData.sounds.pet[
-        Math.floor(Math.random() * this.creatureData.sounds.pet.length)
-      ];
-    }
-  }
-
-  playWithCreature() {
-    if (this.creature) {
-      this.creature.playHappy();
-      return this.creatureData.sounds.happy[
-        Math.floor(Math.random() * this.creatureData.sounds.happy.length)
-      ];
-    }
-  }
-
-  dispose() {
-    if (this.xrSession) {
-      this.xrSession.end();
-    }
-    this.renderer.setAnimationLoop(null);
-    this.renderer.dispose();
   }
 }
