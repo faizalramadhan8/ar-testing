@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Creature Companion AR</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --primary: #FF6B9D;
+      --primary-dark: #E84A7F;
+      --secondary: #7C5CFF;
+      --accent: #FFD93D;
+      --accent-green: #6BCB77;
+      --bg-dark: #1A1B2E;
+      --bg-card: rgba(255, 255, 255, 0.08);
+      --text-light: #FFFFFF;
+      --text-muted: rgba(255, 255, 255, 0.6);
+      --glass: rgba(255, 255, 255, 0.1);
+      --glass-border: rgba(255, 255, 255, 0.2);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-light);
+      overflow: hidden;
+      touch-action: none;
+    }
+
+    /* AR Canvas Container */
+    #ar-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    #ar-container canvas {
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    /* Loading Screen */
+    #loading-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #1A1B2E 0%, #2D1B4E 50%, #1A2B3E 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      transition: opacity 0.5s ease, visibility 0.5s ease;
+    }
+
+    #loading-screen.hidden {
+      opacity: 0;
+      visibility: hidden;
+    }
+
+    .loading-creature {
+      width: 120px;
+      height: 120px;
+      position: relative;
+      animation: bounce 1s ease-in-out infinite;
+    }
+
+    .loading-creature::before {
+      content: '';
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+      box-shadow: 
+        0 10px 40px rgba(255, 107, 157, 0.4),
+        inset 0 -10px 30px rgba(0, 0, 0, 0.2),
+        inset 0 10px 20px rgba(255, 255, 255, 0.3);
+    }
+
+    .loading-creature::after {
+      content: '◉ ◉';
+      position: absolute;
+      top: 35%;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 24px;
+      letter-spacing: 15px;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-20px); }
+    }
+
+    .loading-text {
+      font-family: 'Fredoka', sans-serif;
+      font-size: 28px;
+      font-weight: 600;
+      margin-top: 30px;
+      background: linear-gradient(90deg, var(--primary), var(--accent), var(--secondary));
+      background-size: 200% 100%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: shimmer 2s linear infinite;
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 0% 50%; }
+      100% { background-position: 200% 50%; }
+    }
+
+    .loading-subtitle {
+      color: var(--text-muted);
+      margin-top: 10px;
+      font-size: 14px;
+    }
+
+    /* Start Screen */
+    #start-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #1A1B2E 0%, #2D1B4E 50%, #1A2B3E 100%);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+      padding: 20px;
+    }
+
+    #start-screen.visible {
+      display: flex;
+    }
+
+    .logo-container {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .logo-icon {
+      width: 150px;
+      height: 150px;
+      margin: 0 auto 20px;
+      position: relative;
+    }
+
+    .logo-icon::before {
+      content: '';
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background: conic-gradient(from 0deg, var(--primary), var(--secondary), var(--accent), var(--accent-green), var(--primary));
+      border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
+      animation: morph 8s ease-in-out infinite, rotate 10s linear infinite;
+      box-shadow: 0 20px 60px rgba(255, 107, 157, 0.4);
+    }
+
+    @keyframes morph {
+      0%, 100% { border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%; }
+      25% { border-radius: 58% 42% 75% 25% / 76% 46% 54% 24%; }
+      50% { border-radius: 50% 50% 33% 67% / 55% 27% 73% 45%; }
+      75% { border-radius: 33% 67% 58% 42% / 63% 68% 32% 37%; }
+    }
+
+    @keyframes rotate {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .app-title {
+      font-family: 'Fredoka', sans-serif;
+      font-size: 36px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--text-light), var(--primary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 10px;
+    }
+
+    .app-subtitle {
+      color: var(--text-muted);
+      font-size: 16px;
+    }
+
+    /* Creature Selection */
+    .creature-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 15px;
+      max-width: 350px;
+      margin-bottom: 40px;
+    }
+
+    .creature-card {
+      aspect-ratio: 1;
+      background: var(--glass);
+      border: 2px solid var(--glass-border);
+      border-radius: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .creature-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, transparent 40%, rgba(255, 255, 255, 0.1) 100%);
+    }
+
+    .creature-card:hover, .creature-card.selected {
+      transform: translateY(-5px) scale(1.05);
+      border-color: var(--primary);
+      box-shadow: 0 10px 30px rgba(255, 107, 157, 0.3);
+    }
+
+    .creature-card.selected::after {
+      content: '✓';
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 24px;
+      height: 24px;
+      background: var(--accent-green);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    .creature-preview {
+      font-size: 40px;
+      margin-bottom: 5px;
+    }
+
+    .creature-name {
+      font-family: 'Fredoka', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-light);
+    }
+
+    /* Start Button */
+    .start-btn {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      border: none;
+      padding: 18px 60px;
+      border-radius: 50px;
+      font-family: 'Fredoka', sans-serif;
+      font-size: 20px;
+      font-weight: 600;
+      color: white;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s ease;
+      box-shadow: 0 10px 30px rgba(255, 107, 157, 0.4);
+    }
+
+    .start-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+      transition: left 0.5s ease;
+    }
+
+    .start-btn:hover::before {
+      left: 100%;
+    }
+
+    .start-btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 15px 40px rgba(255, 107, 157, 0.5);
+    }
+
+    .start-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* AR HUD */
+    #ar-hud {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 100;
+      display: none;
+    }
+
+    #ar-hud.visible {
+      display: block;
+    }
+
+    /* Top Bar */
+    .top-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 20px;
+      padding-top: env(safe-area-inset-top, 20px);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      pointer-events: auto;
+    }
+
+    .creature-info {
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      border-radius: 20px;
+      padding: 15px 20px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .creature-avatar {
+      width: 50px;
+      height: 50px;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      border-radius: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+
+    .creature-stats {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .creature-stat-name {
+      font-family: 'Fredoka', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .stat-bars {
+      display: flex;
+      gap: 8px;
+    }
+
+    .stat-bar {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .stat-bar-icon {
+      font-size: 10px;
+    }
+
+    .stat-bar-track {
+      width: 50px;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .stat-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.5s ease;
+    }
+
+    .stat-bar-fill.health {
+      background: linear-gradient(90deg, #FF6B6B, #FF8E8E);
+    }
+
+    .stat-bar-fill.happiness {
+      background: linear-gradient(90deg, var(--accent), #FFE066);
+    }
+
+    .menu-btn {
+      width: 50px;
+      height: 50px;
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      border-radius: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .menu-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .menu-btn svg {
+      width: 24px;
+      height: 24px;
+      fill: white;
+    }
+
+    /* Instruction Overlay */
+    .instruction-overlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .scan-indicator {
+      width: 200px;
+      height: 200px;
+      border: 3px dashed var(--primary);
+      border-radius: 20px;
+      margin: 0 auto 20px;
+      animation: pulse 2s ease-in-out infinite;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .scan-indicator svg {
+      width: 60px;
+      height: 60px;
+      fill: var(--primary);
+      opacity: 0.8;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.05); opacity: 0.7; }
+    }
+
+    .instruction-text {
+      font-family: 'Fredoka', sans-serif;
+      font-size: 18px;
+      color: white;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Bottom Action Bar */
+    .bottom-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 20px;
+      padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 20px);
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      pointer-events: auto;
+    }
+
+    .action-btn {
+      width: 70px;
+      height: 70px;
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 2px solid var(--glass-border);
+      border-radius: 50%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      gap: 2px;
+    }
+
+    .action-btn:hover {
+      transform: scale(1.1);
+      border-color: var(--primary);
+    }
+
+    .action-btn:active {
+      transform: scale(0.95);
+    }
+
+    .action-btn.primary {
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      border: none;
+      box-shadow: 0 10px 30px rgba(255, 107, 157, 0.4);
+    }
+
+    .action-btn-icon {
+      font-size: 24px;
+    }
+
+    .action-btn-label {
+      font-size: 10px;
+      font-weight: 500;
+      color: white;
+      opacity: 0.8;
+    }
+
+    /* Interaction Effects */
+    .interaction-effect {
+      position: fixed;
+      pointer-events: none;
+      z-index: 200;
+    }
+
+    .heart-burst {
+      animation: heartBurst 1s ease-out forwards;
+    }
+
+    @keyframes heartBurst {
+      0% { transform: scale(0); opacity: 1; }
+      50% { transform: scale(1.5); opacity: 1; }
+      100% { transform: scale(2) translateY(-50px); opacity: 0; }
+    }
+
+    /* Toast Notification */
+    .toast {
+      position: fixed;
+      bottom: 150px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      border-radius: 50px;
+      padding: 15px 30px;
+      font-family: 'Fredoka', sans-serif;
+      font-size: 16px;
+      color: white;
+      z-index: 300;
+      opacity: 0;
+      transition: all 0.3s ease;
+    }
+
+    .toast.visible {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    /* Error/WebXR Not Supported */
+    .error-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--bg-dark);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      padding: 40px;
+      text-align: center;
+    }
+
+    .error-screen.visible {
+      display: flex;
+    }
+
+    .error-icon {
+      font-size: 80px;
+      margin-bottom: 20px;
+    }
+
+    .error-title {
+      font-family: 'Fredoka', sans-serif;
+      font-size: 24px;
+      margin-bottom: 15px;
+    }
+
+    .error-message {
+      color: var(--text-muted);
+      max-width: 300px;
+      line-height: 1.6;
+    }
+
+    /* Fallback Mode Banner */
+    .fallback-banner {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(135deg, #FF9500, #FF6B00);
+      padding: 10px 20px;
+      border-radius: 30px;
+      font-family: 'Fredoka', sans-serif;
+      font-size: 14px;
+      z-index: 500;
+      display: none;
+    }
+
+    .fallback-banner.visible {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <!-- Loading Screen -->
+  <div id="loading-screen">
+    <div class="loading-creature"></div>
+    <div class="loading-text">Loading...</div>
+    <div class="loading-subtitle">Preparing your AR adventure</div>
+  </div>
+
+  <!-- Start Screen -->
+  <div id="start-screen">
+    <div class="logo-container">
+      <div class="logo-icon"></div>
+      <h1 class="app-title">Creature Companion</h1>
+      <p class="app-subtitle">Choose your companion for AR adventure!</p>
+    </div>
+
+    <div class="creature-grid" id="creature-grid">
+      <!-- Creatures will be generated by JS -->
+    </div>
+
+    <button class="start-btn" id="start-btn" disabled>
+      🎮 Start AR Adventure
+    </button>
+  </div>
+
+  <!-- AR Container -->
+  <div id="ar-container"></div>
+
+  <!-- AR HUD -->
+  <div id="ar-hud">
+    <div class="top-bar">
+      <div class="creature-info">
+        <div class="creature-avatar" id="hud-avatar">🐾</div>
+        <div class="creature-stats">
+          <div class="creature-stat-name" id="hud-name">Creature</div>
+          <div class="stat-bars">
+            <div class="stat-bar">
+              <span class="stat-bar-icon">❤️</span>
+              <div class="stat-bar-track">
+                <div class="stat-bar-fill health" id="health-bar" style="width: 100%"></div>
+              </div>
+            </div>
+            <div class="stat-bar">
+              <span class="stat-bar-icon">😊</span>
+              <div class="stat-bar-track">
+                <div class="stat-bar-fill happiness" id="happiness-bar" style="width: 80%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="menu-btn" id="menu-btn">
+        <svg viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+      </div>
+    </div>
+
+    <div class="instruction-overlay" id="instruction-overlay">
+      <div class="scan-indicator">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+      </div>
+      <p class="instruction-text">Point your camera at a flat surface</p>
+    </div>
+
+    <div class="bottom-bar">
+      <div class="action-btn" id="btn-feed">
+        <span class="action-btn-icon">🍎</span>
+        <span class="action-btn-label">Feed</span>
+      </div>
+      <div class="action-btn primary" id="btn-pet">
+        <span class="action-btn-icon">❤️</span>
+      </div>
+      <div class="action-btn" id="btn-play">
+        <span class="action-btn-icon">⚽</span>
+        <span class="action-btn-label">Play</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fallback Mode Banner -->
+  <div class="fallback-banner" id="fallback-banner">
+    📱 Demo Mode - AR not available
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <!-- Error Screen -->
+  <div class="error-screen" id="error-screen">
+    <div class="error-icon">😢</div>
+    <h2 class="error-title">AR Not Supported</h2>
+    <p class="error-message">Your device or browser doesn't support WebXR AR. Try using Chrome on an Android device, or Safari on iOS 15+.</p>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
