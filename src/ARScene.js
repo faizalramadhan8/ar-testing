@@ -138,17 +138,27 @@ export class ARScene {
   }
 
   async checkARSupport() {
+    // Check if running on iOS
+    this.isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    
     if ('xr' in navigator) {
       try {
+        // Check for immersive-ar support
         this.isARSupported = await navigator.xr.isSessionSupported('immersive-ar');
+        console.log('WebXR AR supported:', this.isARSupported);
       } catch (e) {
         console.log('XR support check failed:', e);
         this.isARSupported = false;
       }
+    } else {
+      console.log('WebXR not available in navigator');
+      this.isARSupported = false;
     }
     
-    if (!this.isARSupported) {
-      console.log('WebXR AR not supported, will use fallback mode');
+    // iOS Safari has limited WebXR support
+    // We'll use fallback mode but with AR Quick Look for iOS
+    if (this.isIOS && !this.isARSupported) {
+      console.log('iOS detected, WebXR not fully supported, using fallback');
     }
     
     return this.isARSupported;
@@ -168,14 +178,17 @@ export class ARScene {
   }
 
   async startWebXR() {
+    // Required features for AR
     const sessionInit = {
-      requiredFeatures: ['hit-test'],
-      optionalFeatures: ['dom-overlay', 'light-estimation'],
+      requiredFeatures: ['local'],
+      optionalFeatures: ['hit-test', 'dom-overlay', 'light-estimation'],
       domOverlay: { root: document.body }
     };
 
     try {
+      console.log('Requesting XR session...');
       const session = await navigator.xr.requestSession('immersive-ar', sessionInit);
+      console.log('XR session started:', session);
       
       this.renderer.xr.setReferenceSpaceType('local');
       await this.renderer.xr.setSession(session);
@@ -185,12 +198,24 @@ export class ARScene {
 
       // Get reference space
       const referenceSpace = await session.requestReferenceSpace('local');
-      const viewerSpace = await session.requestReferenceSpace('viewer');
-
-      // Request hit test source
-      this.hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
+      
+      // Try to get hit test source (optional - might not be available on all devices)
+      try {
+        const viewerSpace = await session.requestReferenceSpace('viewer');
+        this.hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
+        console.log('Hit test source created');
+      } catch (hitTestError) {
+        console.log('Hit test not available:', hitTestError);
+        // Place creature immediately if hit test not available
+        setTimeout(() => {
+          if (!this.isCreaturePlaced) {
+            this.placeCreature(new THREE.Vector3(0, 0, -1));
+          }
+        }, 1000);
+      }
 
       session.addEventListener('end', () => {
+        console.log('XR session ended');
         this.isARActive = false;
         this.hitTestSource = null;
       });
@@ -201,18 +226,75 @@ export class ARScene {
       if (this.onARStarted) this.onARStarted(false);
       
     } catch (error) {
+      console.error('Failed to start WebXR:', error);
       throw error;
     }
   }
 
-  startFallbackMode() {
+  async startFallbackMode() {
     this.isFallbackMode = true;
     this.isARActive = true;
+
+    // Try to use camera as background on mobile
+    if (this.isIOS || /Android/i.test(navigator.userAgent)) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' }
+        });
+        
+        // Create video element for camera feed
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.setAttribute('playsinline', '');
+        video.setAttribute('autoplay', '');
+        video.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          z-index: -1;
+        `;
+        document.body.insertBefore(video, document.body.firstChild);
+        await video.play();
+        
+        this.cameraVideo = video;
+        this.cameraStream = stream;
+        
+        // Make renderer transparent
+        this.renderer.setClearColor(0x000000, 0);
+        
+        console.log('Camera background enabled');
+      } catch (err) {
+        console.log('Could not access camera for background:', err);
+        // Use solid background instead
+        this.scene.background = new THREE.Color(0x87CEEB);
+        this.addGroundPlane();
+      }
+    } else {
+      // Desktop fallback with ground plane
+      this.scene.background = new THREE.Color(0x87CEEB);
+      this.addGroundPlane();
+    }
 
     // Setup camera for fallback mode
     this.camera.position.set(0, 0.5, 1.5);
     this.camera.lookAt(0, 0.2, 0);
 
+    // Place creature immediately in fallback mode
+    this.placeCreature(new THREE.Vector3(0, 0, 0));
+
+    // Setup orbit controls simulation
+    this.setupFallbackControls();
+
+    // Start render loop
+    this.renderer.setAnimationLoop((time) => this.renderFallback(time));
+
+    if (this.onARStarted) this.onARStarted(true);
+  }
+
+  addGroundPlane() {
     // Add ground plane
     const groundGeom = new THREE.PlaneGeometry(10, 10);
     const groundMat = new THREE.MeshStandardMaterial({ 
@@ -229,20 +311,6 @@ export class ARScene {
     const grid = new THREE.GridHelper(10, 20, 0x666666, 0x444444);
     grid.position.y = 0.001;
     this.scene.add(grid);
-
-    // Add sky gradient
-    this.scene.background = new THREE.Color(0x87CEEB);
-
-    // Place creature immediately in fallback mode
-    this.placeCreature(new THREE.Vector3(0, 0, 0));
-
-    // Setup orbit controls simulation
-    this.setupFallbackControls();
-
-    // Start render loop
-    this.renderer.setAnimationLoop((time) => this.renderFallback(time));
-
-    if (this.onARStarted) this.onARStarted(true);
   }
 
   setupFallbackControls() {

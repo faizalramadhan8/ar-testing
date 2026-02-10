@@ -128,6 +128,23 @@ class App {
   async startARExperience() {
     if (!this.selectedCreature) return;
 
+    // Request camera permission first (required for iOS)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        } 
+      });
+      // Stop the stream immediately, we just needed permission
+      stream.getTracks().forEach(track => track.stop());
+      console.log('Camera permission granted');
+    } catch (err) {
+      console.log('Camera permission denied or not available:', err);
+      // Continue anyway, fallback mode will handle it
+    }
+
     // Hide start screen
     this.elements.startScreen.classList.remove('visible');
 
