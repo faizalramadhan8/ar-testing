@@ -1,37 +1,33 @@
 export const creatures = [
   {
-    id: 'fluffox',
-    name: 'Fluffox',
-    description: 'A mischievous fire fox with a fluffy tail',
-    personality: 'Playful & Curious',
+    id: 'kuntilanak',
+    name: 'Kuntilanak',
+    description: 'Hantu perempuan berambut panjang dari cerita rakyat Nusantara',
+    personality: 'Misterius & Menyeramkan',
     colors: {
-      primary: '#FF7B54',
-      secondary: '#FFB26B',
-      accent: '#FFD56B'
+      primary: '#EDE7E3',
+      secondary: '#1A0F2E',
+      accent: '#C0392B'
     },
-    gradient: 'linear-gradient(135deg, #FF7B54 0%, #FFB26B 100%)',
+    gradient: 'linear-gradient(135deg, #EDE7E3 0%, #1A0F2E 100%)',
     icon: `<svg viewBox="0 0 64 64" fill="none">
-      <ellipse cx="32" cy="38" rx="18" ry="16" fill="#FF7B54"/>
-      <ellipse cx="32" cy="42" rx="10" ry="8" fill="#FFD56B"/>
-      <path d="M14 30 L20 12 L26 28 Z" fill="#FF7B54"/>
-      <path d="M50 30 L44 12 L38 28 Z" fill="#FF7B54"/>
-      <path d="M17 26 L21 16 L25 26 Z" fill="#FFB26B"/>
-      <path d="M47 26 L43 16 L39 26 Z" fill="#FFB26B"/>
-      <ellipse cx="24" cy="36" rx="4" ry="4.5" fill="white"/>
-      <ellipse cx="40" cy="36" rx="4" ry="4.5" fill="white"/>
-      <ellipse cx="25" cy="37" rx="2.5" ry="3" fill="#3D2B22"/>
-      <ellipse cx="41" cy="37" rx="2.5" ry="3" fill="#3D2B22"/>
-      <circle cx="26" cy="35.5" r="1" fill="white"/>
-      <circle cx="42" cy="35.5" r="1" fill="white"/>
-      <ellipse cx="32" cy="44" rx="3" ry="2" fill="#3D2B22"/>
-      <path d="M28 48 Q32 51 36 48" stroke="#3D2B22" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-      <circle cx="20" cy="42" r="3" fill="#FFB3B3" opacity="0.5"/>
-      <circle cx="44" cy="42" r="3" fill="#FFB3B3" opacity="0.5"/>
+      <path d="M12 22 Q10 50 16 58 L22 60 L22 34 Q22 20 32 18 Q42 20 42 34 L42 60 L48 58 Q54 50 52 22 Q52 8 32 8 Q12 8 12 22 Z" fill="#1A0F2E"/>
+      <ellipse cx="32" cy="32" rx="11" ry="13" fill="#EDE7E3"/>
+      <path d="M20 22 Q24 14 32 14 Q40 14 44 22 Q40 24 36 22 Q32 18 28 22 Q24 24 20 22 Z" fill="#1A0F2E"/>
+      <ellipse cx="26" cy="32" rx="2" ry="3" fill="#1A0F2E"/>
+      <ellipse cx="38" cy="32" rx="2" ry="3" fill="#1A0F2E"/>
+      <circle cx="26" cy="31" r="0.9" fill="#C0392B"/>
+      <circle cx="38" cy="31" r="0.9" fill="#C0392B"/>
+      <ellipse cx="26" cy="36" rx="2.5" ry="1" fill="#8B7D8B" opacity="0.6"/>
+      <ellipse cx="38" cy="36" rx="2.5" ry="1" fill="#8B7D8B" opacity="0.6"/>
+      <path d="M28 40 Q32 43 36 40" stroke="#C0392B" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <circle cx="22" cy="36" r="2" fill="#B8A8B8" opacity="0.35"/>
+      <circle cx="42" cy="36" r="2" fill="#B8A8B8" opacity="0.35"/>
     </svg>`,
     sounds: {
-      happy: ['Yip!', 'Arf arf!'],
-      pet: ['Purrrr~', '*nuzzle*'],
-      feed: ['Nom nom!', 'Yummy!']
+      happy: ['Kikikiki~', 'Hihihi~'],
+      pet: ['*dingin...*', 'Hsshh~'],
+      feed: ['Hmmm...', '*senyap*']
     }
   },
   {

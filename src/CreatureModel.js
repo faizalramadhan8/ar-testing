@@ -28,7 +28,7 @@ export class CreatureModel {
     
     // Model URLs - using free CC0 models from various sources
     this.modelUrls = {
-      fluffox: 'https://vazxmixjsiawhamofees.supabase.co/storage/v1/object/public/models/fox/model.gltf',
+      kuntilanak: '/models/kuntilanak.glb',
       bubbird: 'https://vazxmixjsiawhamofees.supabase.co/storage/v1/object/public/models/duck/model.gltf',
       leafling: 'https://vazxmixjsiawhamofees.supabase.co/storage/v1/object/public/models/tree-spruce/model.gltf',
       sparkitty: 'https://vazxmixjsiawhamofees.supabase.co/storage/v1/object/public/models/cat/model.gltf',
@@ -403,7 +403,7 @@ export class CreatureModel {
     this.tailGroup = new THREE.Group();
     const type = this.data.id;
     
-    if (type === 'fluffox') {
+    if (type === 'kuntilanak') {
       const tailGeo = new THREE.SphereGeometry(0.055, 24, 24);
       tailGeo.scale(0.6, 0.6, 1.4);
       const tail = new THREE.Mesh(tailGeo, createMat(secondary));
