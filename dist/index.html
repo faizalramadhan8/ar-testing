@@ -157,6 +157,7 @@
       flex-direction: column;
       z-index: 999;
       padding: 20px;
+      touch-action: auto;
       padding-top: calc(var(--safe-top) + 20px);
       padding-bottom: calc(var(--safe-bottom) + 20px);
       overflow-y: auto;
@@ -383,15 +384,17 @@
     .ghost-hunt-btn {
       background: linear-gradient(135deg, var(--ghost), var(--ghost-dark));
       border: none;
-      padding: 8px 16px;
+      padding: 10px 20px;
       border-radius: 100px;
       font-family: 'Nunito', sans-serif;
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 700;
       color: white;
       cursor: pointer;
       transition: all 0.2s;
       box-shadow: 0 4px 12px rgba(46, 204, 113, 0.3);
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: rgba(46, 204, 113, 0.3);
     }
 
     .ghost-hunt-btn:active { transform: scale(0.95); }
@@ -436,6 +439,7 @@
       display: flex;
       align-items: center;
       gap: 8px;
+      touch-action: manipulation;
     }
 
     .hunt-nav-btn:active { transform: scale(0.97); }
@@ -455,6 +459,7 @@
       flex-direction: column;
       z-index: 998;
       padding: 20px;
+      touch-action: auto;
       padding-top: calc(var(--safe-top) + 20px);
       padding-bottom: calc(var(--safe-bottom) + 20px);
       overflow-y: auto;
