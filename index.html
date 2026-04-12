@@ -297,6 +297,7 @@
       background: linear-gradient(135deg, transparent 60%, rgba(255,255,255,0.02) 100%);
       opacity: 0;
       transition: opacity 0.3s;
+      pointer-events: none;
     }
 
     .ghost-card:hover::before { opacity: 1; }
@@ -394,7 +395,9 @@
       transition: all 0.2s;
       box-shadow: 0 4px 12px rgba(46, 204, 113, 0.3);
       touch-action: manipulation;
-      -webkit-tap-highlight-color: rgba(46, 204, 113, 0.3);
+      pointer-events: auto;
+      position: relative;
+      z-index: 2;
     }
 
     .ghost-hunt-btn:active { transform: scale(0.95); }
