@@ -24,7 +24,7 @@ export const ghosts = [
       <path d="M28 40Q32 43 36 40" stroke="#C0392B" stroke-width="1.5" fill="none" stroke-linecap="round"/>
     </svg>`,
     spawnPoints: [
-      { lat: -6.9175, lng: 107.6191, label: 'Pohon Tua Dago' }
+      { lat: -6.447442541882035, lng: 106.8509264687788, label: 'Lokasi 1' }
     ],
     sounds: {
       appear: ['Kikikiki~', '*angin dingin berhembus*'],
@@ -57,7 +57,7 @@ export const ghosts = [
       <path d="M20 50Q32 56 44 50" stroke="#8FAF8F" stroke-width="1" fill="none" opacity="0.6"/>
     </svg>`,
     spawnPoints: [
-      { lat: -6.9145, lng: 107.6098, label: 'Kuburan Tua' }
+      { lat: -6.447442541882035, lng: 106.8509264687788, label: 'Lokasi 1' }
     ],
     sounds: {
       appear: ['*lompat lompat*', 'Huuuu...'],
@@ -95,7 +95,7 @@ export const ghosts = [
       <circle cx="42" cy="30" r="2.5" fill="#D4A89A" opacity="0.5"/>
     </svg>`,
     spawnPoints: [
-      { lat: -6.9210, lng: 107.6070, label: 'Pasar Lama' }
+      { lat: -6.385133313954818, lng: 106.83921549069453, label: 'Lokasi 2' }
     ],
     sounds: {
       appear: ['*kekekeke*', '*langkah kecil*'],
@@ -134,7 +134,7 @@ export const ghosts = [
       <path d="M50 26Q54 38 48 50" stroke="#2C1810" stroke-width="6" stroke-linecap="round"/>
     </svg>`,
     spawnPoints: [
-      { lat: -6.9250, lng: 107.6150, label: 'Hutan Gelap' }
+      { lat: -6.385133313954818, lng: 106.83921549069453, label: 'Lokasi 2' }
     ],
     sounds: {
       appear: ['GRAAAH!', '*bumi bergetar*'],
@@ -170,7 +170,7 @@ export const ghosts = [
       <ellipse cx="32" cy="50" rx="4" ry="5" fill="#1A0F2E" opacity="0.8"/>
     </svg>`,
     spawnPoints: [
-      { lat: -6.9120, lng: 107.6220, label: 'Gang Sepi' }
+      { lat: -6.405880389278612, lng: 106.85691175773614, label: 'Lokasi 3' }
     ],
     sounds: {
       appear: ['*tertawa pelan*', '*angin berhembus*'],
@@ -207,7 +207,7 @@ export const ghosts = [
       <line x1="44" y1="38" x2="48" y2="38" stroke="#6B5B7B" stroke-width="2" opacity="0.6"/>
     </svg>`,
     spawnPoints: [
-      { lat: -6.9300, lng: 107.6100, label: 'Rumah Tua' }
+      { lat: -6.405880389278612, lng: 106.85691175773614, label: 'Lokasi 3' }
     ],
     sounds: {
       appear: ['*suara anak menangis*', 'Kemari nak...'],
