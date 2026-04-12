@@ -67,6 +67,7 @@ class App {
       modeBanner: document.getElementById('mode-banner'),
       toast: document.getElementById('toast'),
       errorScreen: document.getElementById('error-screen'),
+      devModeBtn: document.getElementById('dev-mode-btn'),
     };
   }
 
@@ -78,17 +79,22 @@ class App {
     this.elements.battleBackBtn.addEventListener('click', () => this.fleeBattle());
     this.elements.captureContinue.addEventListener('click', () => this.finishCapture());
 
+    this.elements.devModeBtn.addEventListener('click', () => this.toggleDevMode());
+
     document.addEventListener('keydown', (e) => {
-      if (e.key === '`') {
-        this.devMode = !this.devMode;
-        this.showToast(this.devMode ? 'DEV MODE ON' : 'DEV MODE OFF', '');
-        if (this.devMode && this.huntMap) {
-          this.huntMap.enableDevMode();
-        } else if (this.huntMap) {
-          this.huntMap.render();
-        }
-      }
+      if (e.key === '`') this.toggleDevMode();
     });
+  }
+
+  toggleDevMode() {
+    this.devMode = !this.devMode;
+    this.showToast(this.devMode ? 'Mode Test: ON — semua hantu bisa diburu' : 'Mode Test: OFF', '');
+    this.elements.devModeBtn.style.opacity = this.devMode ? '1' : '0.6';
+    if (this.devMode && this.huntMap) {
+      this.huntMap.enableDevMode();
+    } else if (this.huntMap) {
+      this.huntMap.render();
+    }
   }
 
   setupHuntMap() {
