@@ -1,48 +1,48 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="theme-color" content="#0D0F1C">
-  <title>Pocket Creatures</title>
+  <meta name="theme-color" content="#0A0B14">
+  <title>Pemburu Hantu</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
-  
+
   <style>
     :root {
-      --coral: #FF6B6B;
-      --coral-dark: #E85555;
-      --mint: #4ECDC4;
-      --mint-dark: #3DB5AD;
-      --lavender: #A78BFA;
-      --lavender-dark: #8B5CF6;
-      --honey: #FBBF24;
-      --honey-dark: #F59E0B;
-      --rose: #FB7185;
-      --sage: #6EE7B7;
-      
-      --bg-deep: #0D0F1C;
-      --bg-card: rgba(255, 255, 255, 0.06);
-      --bg-card-hover: rgba(255, 255, 255, 0.1);
-      --glass: rgba(255, 255, 255, 0.08);
-      --glass-border: rgba(255, 255, 255, 0.12);
-      --glass-strong: rgba(255, 255, 255, 0.15);
-      
+      --blood: #E74C3C;
+      --blood-dark: #C0392B;
+      --ghost: #2ECC71;
+      --ghost-dark: #27AE60;
+      --mystic: #9B59B6;
+      --mystic-dark: #8E44AD;
+      --ember: #E67E22;
+      --ember-dark: #D35400;
+      --pale: #ECF0F1;
+      --bone: #BDC3C7;
+
+      --bg-deep: #0A0B14;
+      --bg-card: rgba(255, 255, 255, 0.05);
+      --bg-card-hover: rgba(255, 255, 255, 0.08);
+      --glass: rgba(255, 255, 255, 0.07);
+      --glass-border: rgba(255, 255, 255, 0.1);
+      --glass-strong: rgba(255, 255, 255, 0.12);
+
       --text-primary: #FFFFFF;
       --text-secondary: rgba(255, 255, 255, 0.7);
-      --text-muted: rgba(255, 255, 255, 0.5);
-      
+      --text-muted: rgba(255, 255, 255, 0.45);
+
       --safe-top: env(safe-area-inset-top, 0px);
       --safe-bottom: env(safe-area-inset-bottom, 0px);
       --safe-left: env(safe-area-inset-left, 0px);
       --safe-right: env(safe-area-inset-right, 0px);
-      
+
       --radius-sm: 12px;
       --radius-md: 16px;
       --radius-lg: 24px;
@@ -75,7 +75,7 @@
     #loading-screen {
       position: fixed;
       inset: 0;
-      background: linear-gradient(165deg, #0D0F1C 0%, #1A1D2E 50%, #0D1117 100%);
+      background: linear-gradient(165deg, #0A0B14 0%, #141628 50%, #0A0B14 100%);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -100,26 +100,26 @@
       inset: 0;
       border-radius: 50%;
       border: 3px solid transparent;
-      border-top-color: var(--coral);
+      border-top-color: var(--blood);
       animation: spin 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
     }
 
     .loader-ring:nth-child(2) {
       inset: 8px;
-      border-top-color: var(--mint);
+      border-top-color: var(--ghost);
       animation-delay: 0.15s;
     }
 
     .loader-ring:nth-child(3) {
       inset: 16px;
-      border-top-color: var(--lavender);
+      border-top-color: var(--mystic);
       animation-delay: 0.3s;
     }
 
     .loader-core {
       position: absolute;
       inset: 28px;
-      background: linear-gradient(135deg, var(--coral), var(--lavender));
+      background: linear-gradient(135deg, var(--mystic), var(--blood));
       border-radius: 50%;
       display: flex;
       align-items: center;
@@ -133,10 +133,7 @@
       fill: white;
     }
 
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-
+    @keyframes spin { to { transform: rotate(360deg); } }
     @keyframes pulse {
       0%, 100% { transform: scale(1); opacity: 1; }
       50% { transform: scale(0.92); opacity: 0.8; }
@@ -151,267 +148,417 @@
       letter-spacing: 0.5px;
     }
 
-    /* ===== START SCREEN ===== */
-    #start-screen {
+    /* ===== HUNT SCREEN ===== */
+    #hunt-screen {
       position: fixed;
       inset: 0;
-      background: linear-gradient(165deg, #0D0F1C 0%, #1A1D2E 40%, #0D1117 100%);
+      background: linear-gradient(165deg, #0A0B14 0%, #141628 40%, #0A0B14 100%);
       display: none;
       flex-direction: column;
-      align-items: center;
       z-index: 999;
-      padding: 24px;
-      padding-top: calc(var(--safe-top) + 24px);
-      padding-bottom: calc(var(--safe-bottom) + 24px);
+      padding: 20px;
+      padding-top: calc(var(--safe-top) + 20px);
+      padding-bottom: calc(var(--safe-bottom) + 20px);
       overflow-y: auto;
       overflow-x: hidden;
     }
 
-    #start-screen.visible {
-      display: flex;
-    }
+    #hunt-screen.visible { display: flex; }
 
-    /* Decorative background */
-    #start-screen::before {
+    #hunt-screen::before {
       content: '';
       position: absolute;
-      top: -50%;
+      top: -40%;
       right: -30%;
       width: 80%;
       height: 100%;
-      background: radial-gradient(circle, rgba(167, 139, 250, 0.08) 0%, transparent 60%);
+      background: radial-gradient(circle, rgba(155, 89, 182, 0.06) 0%, transparent 60%);
       pointer-events: none;
     }
 
-    #start-screen::after {
-      content: '';
-      position: absolute;
-      bottom: -30%;
-      left: -20%;
-      width: 60%;
-      height: 80%;
-      background: radial-gradient(circle, rgba(78, 205, 196, 0.06) 0%, transparent 60%);
-      pointer-events: none;
-    }
-
-    .brand {
+    .hunt-header {
       text-align: center;
-      margin-bottom: clamp(24px, 5vh, 40px);
+      margin-bottom: clamp(16px, 4vh, 28px);
       position: relative;
       z-index: 1;
     }
 
-    .brand-icon {
-      width: clamp(72px, 18vw, 96px);
-      height: clamp(72px, 18vw, 96px);
-      margin: 0 auto 16px;
-      background: linear-gradient(135deg, var(--coral) 0%, var(--lavender) 50%, var(--mint) 100%);
+    .hunt-brand {
+      width: clamp(60px, 16vw, 80px);
+      height: clamp(60px, 16vw, 80px);
+      margin: 0 auto 12px;
+      background: linear-gradient(135deg, var(--mystic) 0%, var(--blood) 100%);
       border-radius: 28%;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 
-        0 8px 32px rgba(255, 107, 107, 0.25),
-        0 0 0 1px rgba(255, 255, 255, 0.1);
-      animation: float 6s ease-in-out infinite;
+      box-shadow: 0 8px 32px rgba(155, 89, 182, 0.3);
+      animation: ghostFloat 4s ease-in-out infinite;
     }
 
-    .brand-icon svg {
-      width: 55%;
-      height: 55%;
-      fill: white;
-      filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+    .hunt-brand svg { width: 55%; height: 55%; fill: white; }
+
+    @keyframes ghostFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
     }
 
-    @keyframes float {
-      0%, 100% { transform: translateY(0) rotate(0deg); }
-      25% { transform: translateY(-6px) rotate(1deg); }
-      75% { transform: translateY(4px) rotate(-1deg); }
-    }
-
-    .brand-title {
+    .hunt-title {
       font-family: 'Nunito', sans-serif;
-      font-size: clamp(26px, 6.5vw, 34px);
+      font-size: clamp(24px, 6vw, 32px);
       font-weight: 800;
-      letter-spacing: -0.5px;
-      background: linear-gradient(135deg, #fff 30%, rgba(255,255,255,0.8) 100%);
+      background: linear-gradient(135deg, #fff 30%, rgba(255,255,255,0.7) 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
+      text-shadow: none;
     }
 
-    .brand-tagline {
-      font-size: clamp(13px, 3.2vw, 15px);
+    .hunt-tagline {
+      font-size: clamp(12px, 3vw, 14px);
       color: var(--text-muted);
-      margin-top: 6px;
+      margin-top: 4px;
       font-weight: 500;
     }
 
-    /* Creature Grid */
+    .hunt-stats {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      margin-bottom: clamp(16px, 3vh, 24px);
+      position: relative;
+      z-index: 1;
+    }
+
+    .hunt-stat {
+      background: var(--bg-card);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-md);
+      padding: 10px 16px;
+      text-align: center;
+      min-width: 80px;
+    }
+
+    .hunt-stat-value {
+      font-family: 'Nunito', sans-serif;
+      font-size: clamp(18px, 5vw, 24px);
+      font-weight: 800;
+      color: var(--ghost);
+    }
+
+    .hunt-stat-label {
+      font-size: clamp(10px, 2.5vw, 11px);
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 600;
+    }
+
     .section-label {
       font-size: clamp(11px, 2.8vw, 12px);
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 1.5px;
       color: var(--text-muted);
-      margin-bottom: 16px;
-      align-self: flex-start;
-      width: 100%;
-      max-width: 380px;
+      margin-bottom: 12px;
       position: relative;
       z-index: 1;
     }
 
-    .creature-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: clamp(12px, 3vw, 16px);
-      width: 100%;
-      max-width: 380px;
-      margin-bottom: clamp(28px, 6vh, 40px);
+    /* Ghost List */
+    .ghost-list {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
       position: relative;
       z-index: 1;
     }
 
-    .creature-card {
-      aspect-ratio: 1;
+    .ghost-card {
       background: var(--bg-card);
       border: 1.5px solid var(--glass-border);
       border-radius: var(--radius-lg);
+      padding: clamp(12px, 3vw, 16px);
       display: flex;
-      flex-direction: column;
       align-items: center;
-      justify-content: center;
+      gap: clamp(12px, 3vw, 16px);
       cursor: pointer;
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       position: relative;
       overflow: hidden;
-      padding: 12px 8px;
     }
 
-    .creature-card::before {
+    .ghost-card::before {
       content: '';
       position: absolute;
       inset: 0;
-      background: linear-gradient(135deg, transparent 50%, rgba(255, 255, 255, 0.03) 100%);
+      background: linear-gradient(135deg, transparent 60%, rgba(255,255,255,0.02) 100%);
       opacity: 0;
       transition: opacity 0.3s;
     }
 
-    .creature-card:hover::before,
-    .creature-card.selected::before {
-      opacity: 1;
+    .ghost-card:hover::before { opacity: 1; }
+
+    .ghost-card.in-range {
+      border-color: var(--ghost);
+      box-shadow: 0 0 20px rgba(46, 204, 113, 0.1);
     }
 
-    .creature-card:hover {
-      transform: translateY(-4px);
-      border-color: rgba(255, 255, 255, 0.2);
-      background: var(--bg-card-hover);
+    .ghost-card.captured {
+      border-color: var(--mystic);
+      opacity: 0.7;
     }
 
-    .creature-card.selected {
-      border-color: var(--coral);
-      background: rgba(255, 107, 107, 0.1);
-      box-shadow: 
-        0 0 0 1px rgba(255, 107, 107, 0.3),
-        0 8px 24px rgba(255, 107, 107, 0.15);
+    .ghost-card.locked {
+      opacity: 0.5;
+      cursor: default;
     }
 
-    .creature-card.selected .creature-check {
-      opacity: 1;
-      transform: scale(1);
-    }
-
-    .creature-check {
-      position: absolute;
-      top: 8px;
-      right: 8px;
-      width: clamp(20px, 5vw, 24px);
-      height: clamp(20px, 5vw, 24px);
-      background: var(--sage);
-      border-radius: 50%;
+    .ghost-card-avatar {
+      width: clamp(48px, 12vw, 56px);
+      height: clamp(48px, 12vw, 56px);
+      border-radius: var(--radius-md);
       display: flex;
       align-items: center;
       justify-content: center;
-      opacity: 0;
-      transform: scale(0.5);
-      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      flex-shrink: 0;
     }
 
-    .creature-check svg {
-      width: 60%;
-      height: 60%;
-      fill: #0D0F1C;
+    .ghost-card-avatar svg { width: 70%; height: 70%; }
+
+    .ghost-card-info {
+      flex: 1;
+      min-width: 0;
     }
 
-    .creature-avatar {
-      width: clamp(48px, 12vw, 60px);
-      height: clamp(48px, 12vw, 60px);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 8px;
-      position: relative;
-    }
-
-    .creature-avatar svg {
-      width: 70%;
-      height: 70%;
-    }
-
-    .creature-name {
+    .ghost-card-name {
       font-family: 'Nunito', sans-serif;
-      font-size: clamp(11px, 2.8vw, 13px);
+      font-size: clamp(14px, 3.5vw, 16px);
       font-weight: 700;
-      color: var(--text-primary);
+    }
+
+    .ghost-card-desc {
+      font-size: clamp(11px, 2.8vw, 12px);
+      color: var(--text-muted);
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .ghost-card-meta {
+      display: flex;
+      gap: 8px;
+      margin-top: 6px;
+      align-items: center;
+    }
+
+    .ghost-rarity {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 2px 8px;
+      border-radius: 100px;
+    }
+
+    .ghost-rarity.common { background: rgba(189, 195, 199, 0.2); color: var(--bone); }
+    .ghost-rarity.rare { background: rgba(155, 89, 182, 0.2); color: var(--mystic); }
+    .ghost-rarity.legendary { background: rgba(231, 76, 60, 0.2); color: var(--blood); }
+
+    .ghost-distance {
+      font-size: clamp(11px, 2.8vw, 12px);
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .ghost-distance.near { color: var(--ghost); }
+
+    .ghost-card-action {
+      flex-shrink: 0;
       text-align: center;
     }
 
-    /* Start Button */
-    .start-btn {
-      background: linear-gradient(135deg, var(--coral) 0%, var(--coral-dark) 100%);
+    .ghost-hunt-btn {
+      background: linear-gradient(135deg, var(--ghost), var(--ghost-dark));
       border: none;
-      padding: clamp(16px, 4vw, 20px) clamp(48px, 12vw, 64px);
+      padding: 8px 16px;
       border-radius: 100px;
       font-family: 'Nunito', sans-serif;
-      font-size: clamp(15px, 4vw, 17px);
+      font-size: 12px;
       font-weight: 700;
       color: white;
       cursor: pointer;
-      position: relative;
-      z-index: 1;
-      overflow: hidden;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      box-shadow: 
-        0 4px 16px rgba(255, 107, 107, 0.3),
-        0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+      transition: all 0.2s;
+      box-shadow: 0 4px 12px rgba(46, 204, 113, 0.3);
+    }
+
+    .ghost-hunt-btn:active { transform: scale(0.95); }
+
+    .ghost-hunt-btn:disabled {
+      background: rgba(255, 255, 255, 0.1);
+      box-shadow: none;
+      cursor: default;
+      color: var(--text-muted);
+    }
+
+    .ghost-captured-badge {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--mystic);
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 4px;
     }
 
-    .start-btn svg {
-      width: 20px;
-      height: 20px;
-      fill: currentColor;
+    /* Hunt bottom nav */
+    .hunt-nav {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 16px;
+      position: relative;
+      z-index: 1;
     }
 
-    .start-btn:hover:not(:disabled) {
-      transform: translateY(-2px);
-      box-shadow: 
-        0 8px 24px rgba(255, 107, 107, 0.4),
-        0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+    .hunt-nav-btn {
+      background: var(--bg-card);
+      border: 1.5px solid var(--glass-border);
+      border-radius: 100px;
+      padding: 12px 24px;
+      font-family: 'Nunito', sans-serif;
+      font-size: clamp(13px, 3.2vw, 14px);
+      font-weight: 700;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
-    .start-btn:active:not(:disabled) {
-      transform: translateY(0);
+    .hunt-nav-btn:active { transform: scale(0.97); }
+    .hunt-nav-btn svg { width: 18px; height: 18px; fill: currentColor; }
+
+    .hunt-nav-btn.collection-btn {
+      border-color: var(--mystic);
+      color: var(--mystic);
     }
 
-    .start-btn:disabled {
+    /* ===== COLLECTION SCREEN ===== */
+    #collection-screen {
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(165deg, #0A0B14 0%, #1A1230 40%, #0A0B14 100%);
+      display: none;
+      flex-direction: column;
+      z-index: 998;
+      padding: 20px;
+      padding-top: calc(var(--safe-top) + 20px);
+      padding-bottom: calc(var(--safe-bottom) + 20px);
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    #collection-screen.visible { display: flex; }
+
+    .collection-header {
+      text-align: center;
+      margin-bottom: clamp(20px, 4vh, 32px);
+    }
+
+    .teapot-icon {
+      width: clamp(80px, 20vw, 100px);
+      height: clamp(80px, 20vw, 100px);
+      margin: 0 auto 12px;
+      animation: ghostFloat 4s ease-in-out infinite;
+    }
+
+    .teapot-icon svg { width: 100%; height: 100%; }
+
+    .collection-title {
+      font-family: 'Nunito', sans-serif;
+      font-size: clamp(22px, 5.5vw, 28px);
+      font-weight: 800;
+      color: var(--text-primary);
+    }
+
+    .collection-count {
+      font-size: clamp(13px, 3.2vw, 15px);
+      color: var(--mystic);
+      font-weight: 600;
+      margin-top: 4px;
+    }
+
+    .collection-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: clamp(12px, 3vw, 16px);
+      flex: 1;
+    }
+
+    .collection-card {
+      background: var(--bg-card);
+      border: 1.5px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      padding: clamp(16px, 4vw, 20px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      transition: all 0.3s;
+    }
+
+    .collection-card.captured {
+      border-color: rgba(155, 89, 182, 0.3);
+      background: rgba(155, 89, 182, 0.05);
+    }
+
+    .collection-card.unknown {
       opacity: 0.4;
-      cursor: not-allowed;
     }
+
+    .collection-card-avatar {
+      width: clamp(56px, 14vw, 68px);
+      height: clamp(56px, 14vw, 68px);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+
+    .collection-card-avatar svg { width: 70%; height: 70%; }
+
+    .collection-card-name {
+      font-family: 'Nunito', sans-serif;
+      font-size: clamp(13px, 3.2vw, 15px);
+      font-weight: 700;
+    }
+
+    .collection-card-date {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .collection-back {
+      background: var(--bg-card);
+      border: 1.5px solid var(--glass-border);
+      border-radius: 100px;
+      padding: 12px 32px;
+      font-family: 'Nunito', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      cursor: pointer;
+      margin-top: 20px;
+      align-self: center;
+      transition: all 0.2s;
+    }
+
+    .collection-back:active { transform: scale(0.97); }
 
     /* ===== AR CONTAINER ===== */
     #ar-container {
@@ -425,8 +572,8 @@
       height: 100% !important;
     }
 
-    /* ===== AR HUD ===== */
-    #ar-hud {
+    /* ===== BATTLE HUD ===== */
+    #battle-hud {
       position: fixed;
       inset: 0;
       pointer-events: none;
@@ -434,11 +581,10 @@
       display: none;
     }
 
-    #ar-hud.visible {
-      display: block;
-    }
+    #battle-hud.visible { display: block; }
 
-    .top-bar {
+    /* Top bar — ghost info */
+    .battle-top {
       position: absolute;
       top: 0;
       left: 0;
@@ -454,7 +600,7 @@
       pointer-events: auto;
     }
 
-    .creature-status {
+    .ghost-status {
       background: var(--glass);
       backdrop-filter: blur(24px);
       -webkit-backdrop-filter: blur(24px);
@@ -468,7 +614,7 @@
       max-width: calc(100% - 56px);
     }
 
-    .status-avatar {
+    .ghost-status-avatar {
       width: clamp(40px, 10vw, 48px);
       height: clamp(40px, 10vw, 48px);
       border-radius: var(--radius-md);
@@ -478,71 +624,40 @@
       flex-shrink: 0;
     }
 
-    .status-avatar svg {
-      width: 65%;
-      height: 65%;
-    }
+    .ghost-status-avatar svg { width: 65%; height: 65%; }
 
-    .status-info {
-      flex: 1;
-      min-width: 0;
-    }
+    .ghost-status-info { flex: 1; min-width: 0; }
 
-    .status-name {
+    .ghost-status-name {
       font-family: 'Nunito', sans-serif;
       font-size: clamp(14px, 3.5vw, 16px);
       font-weight: 700;
       margin-bottom: 6px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
 
-    .status-bars {
-      display: flex;
-      gap: clamp(8px, 2vw, 12px);
-    }
-
-    .stat-row {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
-
-    .stat-icon {
-      width: 14px;
-      height: 14px;
-      flex-shrink: 0;
-    }
-
-    .stat-icon svg {
+    .ghost-hp-track {
       width: 100%;
-      height: 100%;
-    }
-
-    .stat-track {
-      width: clamp(40px, 10vw, 52px);
-      height: 5px;
+      height: 8px;
       background: rgba(255, 255, 255, 0.15);
       border-radius: 100px;
       overflow: hidden;
     }
 
-    .stat-fill {
+    .ghost-hp-fill {
       height: 100%;
       border-radius: 100px;
-      transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      background: linear-gradient(90deg, var(--blood), var(--ember));
+      transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    .stat-fill.health {
-      background: linear-gradient(90deg, var(--coral), var(--rose));
+    .ghost-hp-text {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-top: 4px;
     }
 
-    .stat-fill.happiness {
-      background: linear-gradient(90deg, var(--honey), var(--honey-dark));
-    }
-
-    .menu-btn {
+    .back-btn {
       width: clamp(40px, 10vw, 48px);
       height: clamp(40px, 10vw, 48px);
       background: var(--glass);
@@ -558,18 +673,266 @@
       transition: all 0.2s;
     }
 
-    .menu-btn:active {
-      transform: scale(0.95);
+    .back-btn:active { transform: scale(0.95); background: var(--glass-strong); }
+    .back-btn svg { width: 22px; height: 22px; fill: var(--text-secondary); }
+
+    /* Crosshair */
+    .crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: clamp(60px, 16vw, 80px);
+      height: clamp(60px, 16vw, 80px);
+      pointer-events: none;
+    }
+
+    .crosshair::before, .crosshair::after {
+      content: '';
+      position: absolute;
+      background: rgba(255, 255, 255, 0.6);
+      border-radius: 2px;
+    }
+
+    .crosshair::before {
+      top: 50%;
+      left: 15%;
+      right: 15%;
+      height: 2px;
+      transform: translateY(-50%);
+    }
+
+    .crosshair::after {
+      left: 50%;
+      top: 15%;
+      bottom: 15%;
+      width: 2px;
+      transform: translateX(-50%);
+    }
+
+    .crosshair-ring {
+      position: absolute;
+      inset: 0;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+    }
+
+    .crosshair-dot {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 6px;
+      height: 6px;
+      background: var(--blood);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 8px rgba(231, 76, 60, 0.6);
+    }
+
+    .crosshair.hit .crosshair-dot {
+      background: var(--ghost);
+      box-shadow: 0 0 12px rgba(46, 204, 113, 0.8);
+    }
+
+    /* Bottom battle bar */
+    .battle-bottom {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: clamp(16px, 4vw, 20px);
+      padding-bottom: calc(var(--safe-bottom) + clamp(20px, 5vw, 28px));
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 24px;
+      pointer-events: auto;
+    }
+
+    .shoot-btn {
+      width: clamp(72px, 20vw, 88px);
+      height: clamp(72px, 20vw, 88px);
+      background: linear-gradient(135deg, var(--blood), var(--blood-dark));
+      border: 4px solid rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s;
+      box-shadow: 0 6px 24px rgba(231, 76, 60, 0.4);
+    }
+
+    .shoot-btn:active {
+      transform: scale(0.9);
+      box-shadow: 0 2px 12px rgba(231, 76, 60, 0.6);
+    }
+
+    .shoot-btn svg { width: 45%; height: 45%; fill: white; }
+
+    .flee-btn {
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1.5px solid var(--glass-border);
+      border-radius: 100px;
+      padding: 12px 20px;
+      font-family: 'Nunito', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .flee-btn:active { transform: scale(0.95); }
+
+    /* Capture Overlay */
+    #capture-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(10, 11, 20, 0.9);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 500;
+      text-align: center;
+      padding: 32px;
+    }
+
+    #capture-overlay.visible { display: flex; }
+
+    .capture-teapot {
+      width: clamp(120px, 30vw, 160px);
+      height: clamp(120px, 30vw, 160px);
+      margin-bottom: 24px;
+      animation: teapotGlow 2s ease-in-out infinite;
+    }
+
+    .capture-teapot svg { width: 100%; height: 100%; }
+
+    @keyframes teapotGlow {
+      0%, 100% { filter: drop-shadow(0 0 12px rgba(155, 89, 182, 0.4)); }
+      50% { filter: drop-shadow(0 0 28px rgba(155, 89, 182, 0.8)); }
+    }
+
+    .capture-title {
+      font-family: 'Nunito', sans-serif;
+      font-size: clamp(22px, 6vw, 28px);
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    .capture-ghost-name {
+      font-size: clamp(16px, 4vw, 18px);
+      color: var(--mystic);
+      font-weight: 700;
+      margin-bottom: 24px;
+    }
+
+    .capture-continue-btn {
+      background: linear-gradient(135deg, var(--mystic), var(--mystic-dark));
+      border: none;
+      padding: 14px 40px;
+      border-radius: 100px;
+      font-family: 'Nunito', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      color: white;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 4px 16px rgba(155, 89, 182, 0.3);
+    }
+
+    .capture-continue-btn:active { transform: scale(0.97); }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: clamp(140px, 28vh, 170px);
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
       background: var(--glass-strong);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      border-radius: 100px;
+      padding: clamp(10px, 2.5vw, 12px) clamp(20px, 5vw, 24px);
+      font-size: clamp(13px, 3.2vw, 14px);
+      font-weight: 600;
+      color: var(--text-primary);
+      z-index: 300;
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      pointer-events: none;
     }
 
-    .menu-btn svg {
-      width: 22px;
-      height: 22px;
-      fill: var(--text-secondary);
+    .toast.visible {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
     }
 
-    /* Instruction Overlay */
+    .toast-icon { font-size: 18px; }
+
+    /* Mode Banner */
+    .mode-banner {
+      position: fixed;
+      top: calc(var(--safe-top) + 12px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(135deg, var(--mystic), var(--mystic-dark));
+      padding: 8px 16px;
+      border-radius: 100px;
+      font-size: 12px;
+      font-weight: 600;
+      z-index: 500;
+      display: none;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 12px rgba(155, 89, 182, 0.3);
+    }
+
+    .mode-banner.visible { display: flex; }
+    .mode-banner svg { width: 14px; height: 14px; fill: currentColor; }
+
+    /* Error Screen */
+    .error-screen {
+      position: fixed;
+      inset: 0;
+      background: var(--bg-deep);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      padding: 32px;
+      text-align: center;
+    }
+
+    .error-screen.visible { display: flex; }
+
+    .error-icon { width: 80px; height: 80px; margin-bottom: 24px; opacity: 0.6; }
+    .error-icon svg { width: 100%; height: 100%; fill: var(--blood); }
+
+    .error-title {
+      font-family: 'Nunito', sans-serif;
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .error-message {
+      color: var(--text-muted);
+      max-width: 280px;
+      line-height: 1.6;
+      font-size: 14px;
+    }
+
+    /* Scan instruction */
     .instruction-overlay {
       position: absolute;
       top: 50%;
@@ -592,7 +955,7 @@
       position: absolute;
       width: 24px;
       height: 24px;
-      border: 3px solid var(--mint);
+      border: 3px solid var(--ghost);
     }
 
     .scan-corner.tl { top: 0; left: 0; border-right: none; border-bottom: none; border-radius: 8px 0 0 0; }
@@ -605,7 +968,7 @@
       left: 10%;
       width: 80%;
       height: 2px;
-      background: linear-gradient(90deg, transparent, var(--mint), transparent);
+      background: linear-gradient(90deg, transparent, var(--ghost), transparent);
       animation: scanMove 2s ease-in-out infinite;
     }
 
@@ -616,22 +979,6 @@
       100% { top: 85%; opacity: 0; }
     }
 
-    .scan-icon {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 48px;
-      height: 48px;
-      opacity: 0.6;
-    }
-
-    .scan-icon svg {
-      width: 100%;
-      height: 100%;
-      fill: var(--mint);
-    }
-
     .instruction-text {
       font-size: clamp(14px, 3.8vw, 16px);
       font-weight: 600;
@@ -639,230 +986,22 @@
       text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
     }
 
-    /* Bottom Action Bar */
-    .bottom-bar {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      padding: clamp(16px, 4vw, 20px);
-      padding-bottom: calc(var(--safe-bottom) + clamp(20px, 5vw, 28px));
-      display: flex;
-      justify-content: center;
-      align-items: flex-end;
-      gap: clamp(16px, 4vw, 20px);
-      pointer-events: auto;
-    }
-
-    .action-btn {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 6px;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .action-btn:active .action-icon {
-      transform: scale(0.92);
-    }
-
-    .action-icon {
-      width: clamp(52px, 14vw, 62px);
-      height: clamp(52px, 14vw, 62px);
-      background: var(--glass);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border: 1.5px solid var(--glass-border);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    .action-icon svg {
-      width: 50%;
-      height: 50%;
-    }
-
-    .action-btn:hover .action-icon {
-      border-color: rgba(255, 255, 255, 0.25);
-      background: var(--glass-strong);
-    }
-
-    .action-label {
-      font-size: clamp(10px, 2.5vw, 11px);
-      font-weight: 600;
-      color: var(--text-secondary);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    /* Primary action */
-    .action-btn.primary .action-icon {
-      width: clamp(64px, 17vw, 76px);
-      height: clamp(64px, 17vw, 76px);
-      background: linear-gradient(135deg, var(--coral), var(--rose));
-      border: none;
-      box-shadow: 
-        0 6px 20px rgba(255, 107, 107, 0.35),
-        0 0 0 1px rgba(255, 255, 255, 0.1) inset;
-    }
-
-    .action-btn.primary .action-icon svg {
-      fill: white;
-    }
-
-    .action-btn.primary:hover .action-icon {
-      box-shadow: 
-        0 8px 28px rgba(255, 107, 107, 0.45),
-        0 0 0 1px rgba(255, 255, 255, 0.15) inset;
-    }
-
-    /* Feed button */
-    .action-btn.feed .action-icon svg { fill: var(--sage); }
-    
-    /* Play button */
-    .action-btn.play .action-icon svg { fill: var(--honey); }
-
-    /* Toast */
-    .toast {
-      position: fixed;
-      bottom: clamp(140px, 30vh, 170px);
-      left: 50%;
-      transform: translateX(-50%) translateY(20px);
-      background: var(--glass-strong);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border: 1px solid var(--glass-border);
-      border-radius: 100px;
-      padding: clamp(10px, 2.5vw, 12px) clamp(20px, 5vw, 24px);
-      font-size: clamp(13px, 3.2vw, 14px);
-      font-weight: 600;
-      color: var(--text-primary);
-      z-index: 300;
-      opacity: 0;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .toast.visible {
-      transform: translateX(-50%) translateY(0);
-      opacity: 1;
-    }
-
-    .toast-icon {
-      width: 18px;
-      height: 18px;
-    }
-
-    /* Mode Banner */
-    .mode-banner {
-      position: fixed;
-      top: calc(var(--safe-top) + 12px);
-      left: 50%;
-      transform: translateX(-50%);
-      background: linear-gradient(135deg, var(--lavender), var(--lavender-dark));
-      padding: 8px 16px;
-      border-radius: 100px;
-      font-size: 12px;
-      font-weight: 600;
-      z-index: 500;
-      display: none;
-      align-items: center;
-      gap: 6px;
-      box-shadow: 0 4px 12px rgba(167, 139, 250, 0.3);
-    }
-
-    .mode-banner.visible {
-      display: flex;
-    }
-
-    .mode-banner svg {
-      width: 14px;
-      height: 14px;
-      fill: currentColor;
-    }
-
-    /* Error Screen */
-    .error-screen {
-      position: fixed;
-      inset: 0;
-      background: var(--bg-deep);
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 2000;
-      padding: 32px;
-      text-align: center;
-    }
-
-    .error-screen.visible {
-      display: flex;
-    }
-
-    .error-icon {
-      width: 80px;
-      height: 80px;
-      margin-bottom: 24px;
-      opacity: 0.6;
-    }
-
-    .error-icon svg {
-      width: 100%;
-      height: 100%;
-      fill: var(--coral);
-    }
-
-    .error-title {
-      font-family: 'Nunito', sans-serif;
-      font-size: 22px;
-      font-weight: 700;
-      margin-bottom: 12px;
-    }
-
-    .error-message {
-      color: var(--text-muted);
-      max-width: 280px;
-      line-height: 1.6;
-      font-size: 14px;
-    }
-
     /* Responsive */
     @media (orientation: landscape) and (max-height: 500px) {
-      #start-screen {
-        flex-direction: row;
-        flex-wrap: wrap;
-        justify-content: center;
-        align-items: center;
-        gap: 24px;
-      }
-      
-      .brand { margin-bottom: 0; }
-      .brand-icon { width: 64px; height: 64px; }
-      .section-label { display: none; }
-      
-      .creature-grid {
-        grid-template-columns: repeat(6, 1fr);
-        max-width: 420px;
-        margin-bottom: 0;
-      }
-      
-      .action-icon { width: 48px; height: 48px; }
-      .action-btn.primary .action-icon { width: 56px; height: 56px; }
-      .action-label { display: none; }
+      .ghost-list { flex-direction: row; flex-wrap: wrap; gap: 8px; }
+      .ghost-card { flex: 1 1 45%; }
+      .hunt-header { margin-bottom: 12px; }
+      .hunt-brand { width: 48px; height: 48px; }
+      .collection-grid { grid-template-columns: repeat(3, 1fr); }
+      .shoot-btn { width: 64px; height: 64px; }
     }
 
     @media (max-width: 350px) {
-      .creature-grid { gap: 10px; }
-      .status-bars { flex-direction: column; gap: 4px; }
+      .ghost-card { padding: 10px; }
+      .collection-grid { grid-template-columns: 1fr; }
     }
   </style>
-  <script type="module" crossorigin src="/assets/index-D4X30g8-.js"></script>
+  <script type="module" crossorigin src="/assets/index-Dr2c8ARq.js"></script>
 </head>
 <body>
   <!-- Loading Screen -->
@@ -875,107 +1014,144 @@
         <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
       </div>
     </div>
-    <p class="loading-text">Preparing your adventure...</p>
+    <p class="loading-text">Mempersiapkan perburuan...</p>
   </div>
 
-  <!-- Start Screen -->
-  <div id="start-screen">
-    <div class="brand">
-      <div class="brand-icon">
-        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5-9c.83 0 1.5-.67 1.5-1.5S7.83 8 7 8s-1.5.67-1.5 1.5S6.17 11 7 11zm10 0c.83 0 1.5-.67 1.5-1.5S17.83 8 17 8s-1.5.67-1.5 1.5.67 1.5 1.5 1.5zm-5 6c2.33 0 4.32-1.45 5.12-3.5H6.88c.8 2.05 2.79 3.5 5.12 3.5z"/></svg>
+  <!-- Hunt Screen -->
+  <div id="hunt-screen">
+    <div class="hunt-header">
+      <div class="hunt-brand">
+        <!-- Ghost icon -->
+        <svg viewBox="0 0 24 24"><path d="M12 2C7.58 2 4 5.58 4 10c0 2.17.87 4.13 2.28 5.57L4 22l3.5-2 3.5 2 3.5-2 3.5 2-2.28-6.43C17.13 14.13 18 12.17 18 10c0-4.42-3.58-8-8-8zm-2 11c-.83 0-1.5-.67-1.5-1.5S9.17 10 10 10s1.5.67 1.5 1.5S10.83 13 10 13zm4 0c-.83 0-1.5-.67-1.5-1.5S13.17 10 14 10s1.5.67 1.5 1.5S14.83 13 14 13z"/></svg>
       </div>
-      <h1 class="brand-title">Pocket Creatures</h1>
-      <p class="brand-tagline">Your AR companion awaits</p>
+      <h1 class="hunt-title">Pemburu Hantu</h1>
+      <p class="hunt-tagline">Temukan & tangkap hantu di sekitarmu</p>
     </div>
 
-    <p class="section-label">Choose your companion</p>
+    <div class="hunt-stats">
+      <div class="hunt-stat">
+        <div class="hunt-stat-value" id="stat-captured">0</div>
+        <div class="hunt-stat-label">Ditangkap</div>
+      </div>
+      <div class="hunt-stat">
+        <div class="hunt-stat-value" id="stat-total">6</div>
+        <div class="hunt-stat-label">Total</div>
+      </div>
+    </div>
 
-    <div class="creature-grid" id="creature-grid"></div>
+    <p class="section-label">Hantu di Sekitar</p>
 
-    <button class="start-btn" id="start-btn" disabled>
-      <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-      <span>Start Adventure</span>
-    </button>
+    <div class="ghost-list" id="ghost-list"></div>
+
+    <div class="hunt-nav">
+      <button class="hunt-nav-btn collection-btn" id="open-collection">
+        <svg viewBox="0 0 24 24"><path d="M2 17h2v.5H3v1h1v.5H2v1h3v-4H2v1zm1-9h1V4H2v1h1v3zm-1 3h1.8L2 13.1v.9h3v-1H3.2L5 10.9V10H2v1zm5-6v2h14V5H7zm0 14h14v-2H7v2zm0-6h14v-2H7v2z"/></svg>
+        <span>Koleksi Teko</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Collection Screen -->
+  <div id="collection-screen">
+    <div class="collection-header">
+      <div class="teapot-icon">
+        <!-- Teapot / lamp SVG -->
+        <svg viewBox="0 0 100 100" fill="none">
+          <ellipse cx="50" cy="75" rx="30" ry="10" fill="#2E1F3E" opacity="0.3"/>
+          <path d="M30 45 Q30 30 50 28 Q70 30 70 45 L72 65 Q72 78 50 80 Q28 78 28 65 Z" fill="url(#teapot-grad)" stroke="#9B59B6" stroke-width="1.5"/>
+          <path d="M42 28 Q50 20 58 28" stroke="#9B59B6" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <ellipse cx="50" cy="24" rx="3" ry="4" fill="#9B59B6"/>
+          <path d="M70 50 Q82 48 80 58 Q78 66 72 64" stroke="#9B59B6" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <path d="M38 48 Q50 42 62 48" stroke="rgba(255,255,255,0.15)" stroke-width="1" fill="none"/>
+          <defs>
+            <linearGradient id="teapot-grad" x1="30" y1="28" x2="70" y2="80" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#4A3A5C"/>
+              <stop offset="100%" stop-color="#2E1F3E"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+      <h1 class="collection-title">Koleksi Teko</h1>
+      <p class="collection-count" id="collection-count">0 / 6 hantu tertangkap</p>
+    </div>
+
+    <div class="collection-grid" id="collection-grid"></div>
+
+    <button class="collection-back" id="close-collection">Kembali ke Perburuan</button>
   </div>
 
   <!-- AR Container -->
   <div id="ar-container"></div>
 
-  <!-- AR HUD -->
-  <div id="ar-hud">
-    <div class="top-bar">
-      <div class="creature-status">
-        <div class="status-avatar" id="hud-avatar"></div>
-        <div class="status-info">
-          <div class="status-name" id="hud-name">Creature</div>
-          <div class="status-bars">
-            <div class="stat-row">
-              <div class="stat-icon">
-                <svg viewBox="0 0 24 24" fill="#FF6B6B"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-              </div>
-              <div class="stat-track">
-                <div class="stat-fill health" id="health-bar" style="width: 100%"></div>
-              </div>
-            </div>
-            <div class="stat-row">
-              <div class="stat-icon">
-                <svg viewBox="0 0 24 24" fill="#FBBF24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-              </div>
-              <div class="stat-track">
-                <div class="stat-fill happiness" id="happiness-bar" style="width: 80%"></div>
-              </div>
-            </div>
+  <!-- Battle HUD -->
+  <div id="battle-hud">
+    <div class="battle-top">
+      <div class="ghost-status">
+        <div class="ghost-status-avatar" id="ghost-avatar"></div>
+        <div class="ghost-status-info">
+          <div class="ghost-status-name" id="ghost-name">Hantu</div>
+          <div class="ghost-hp-track">
+            <div class="ghost-hp-fill" id="ghost-hp-bar" style="width: 100%"></div>
           </div>
+          <div class="ghost-hp-text" id="ghost-hp-text">HP: 100 / 100</div>
         </div>
       </div>
 
-      <div class="menu-btn" id="menu-btn">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+      <div class="back-btn" id="battle-back-btn">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
       </div>
     </div>
 
-    <div class="instruction-overlay" id="instruction-overlay">
+    <!-- Crosshair -->
+    <div class="crosshair" id="crosshair">
+      <div class="crosshair-ring"></div>
+      <div class="crosshair-dot"></div>
+    </div>
+
+    <!-- Scan instruction (shown before ghost appears) -->
+    <div class="instruction-overlay" id="instruction-overlay" style="display:none;">
       <div class="scan-area">
         <div class="scan-corner tl"></div>
         <div class="scan-corner tr"></div>
         <div class="scan-corner bl"></div>
         <div class="scan-corner br"></div>
         <div class="scan-line"></div>
-        <div class="scan-icon">
-          <svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>
-        </div>
       </div>
-      <p class="instruction-text">Point at a flat surface and tap</p>
+      <p class="instruction-text">Mencari hantu di sekitarmu...</p>
     </div>
 
-    <div class="bottom-bar">
-      <div class="action-btn feed" id="btn-feed">
-        <div class="action-icon">
-          <svg viewBox="0 0 24 24"><path d="M18.06 22.99h1.66c.84 0 1.53-.64 1.63-1.46L23 5.05l-4.01-.51-.52 4.06c-.16 1.3-1.3 2.26-2.62 2.19l-4.89-.31c-.94-.06-1.68-.84-1.68-1.78V5.17l-3.96-.5-.52 4.06c-.16 1.3-1.3 2.26-2.62 2.19L.79 10.66l-.26 2.04c-.16 1.27.77 2.41 2.04 2.58l.89.11v6.27c0 .75.61 1.36 1.36 1.36h.57c.75 0 1.36-.61 1.36-1.36v-5.96l4.5.57v5.39c0 .75.61 1.36 1.36 1.36h.57c.75 0 1.36-.61 1.36-1.36v-5.07l3.93.49v4.57c0 .75.61 1.36 1.36 1.36l.23-.03z"/><circle cx="9" cy="2.5" r="2"/></svg>
-        </div>
-        <span class="action-label">Feed</span>
-      </div>
-
-      <div class="action-btn primary" id="btn-pet">
-        <div class="action-icon">
-          <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-        </div>
-        <span class="action-label">Love</span>
-      </div>
-
-      <div class="action-btn play" id="btn-play">
-        <div class="action-icon">
-          <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5.5-2.5l7.51-4.5L6.5 8.5v9zm7-4.5L8.5 16V8l5 3z"/></svg>
-        </div>
-        <span class="action-label">Play</span>
-      </div>
+    <div class="battle-bottom">
+      <button class="flee-btn" id="btn-flee">Kabur</button>
+      <button class="shoot-btn" id="btn-shoot">
+        <!-- Crosshair/target icon -->
+        <svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>
+      </button>
     </div>
+  </div>
+
+  <!-- Capture Overlay -->
+  <div id="capture-overlay">
+    <div class="capture-teapot">
+      <svg viewBox="0 0 100 100" fill="none">
+        <ellipse cx="50" cy="80" rx="25" ry="8" fill="#2E1F3E" opacity="0.3"/>
+        <path d="M30 45 Q30 30 50 28 Q70 30 70 45 L72 65 Q72 78 50 80 Q28 78 28 65 Z" fill="#4A3A5C" stroke="#9B59B6" stroke-width="2"/>
+        <path d="M42 28 Q50 18 58 28" stroke="#9B59B6" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <ellipse cx="50" cy="22" rx="4" ry="5" fill="#9B59B6"/>
+        <path d="M70 50 Q84 47 82 60 Q79 70 72 66" stroke="#9B59B6" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <path d="M38 46 Q50 40 62 46" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" fill="none"/>
+        <circle cx="50" cy="55" r="8" fill="none" stroke="#9B59B6" stroke-width="1" opacity="0.6"/>
+        <circle cx="50" cy="55" r="3" fill="#9B59B6" opacity="0.5"/>
+      </svg>
+    </div>
+    <h2 class="capture-title">Hantu Tertangkap!</h2>
+    <p class="capture-ghost-name" id="captured-ghost-name"></p>
+    <button class="capture-continue-btn" id="capture-continue">Lanjut Berburu</button>
   </div>
 
   <!-- Mode Banner -->
   <div class="mode-banner" id="mode-banner">
     <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
-    <span>Camera Mode</span>
+    <span>Mode Kamera</span>
   </div>
 
   <!-- Toast -->
@@ -989,8 +1165,8 @@
     <div class="error-icon">
       <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
     </div>
-    <h2 class="error-title">AR Not Available</h2>
-    <p class="error-message">Your device or browser doesn't support WebXR. Try Chrome on Android or Safari on iOS 15+.</p>
+    <h2 class="error-title">Tidak Tersedia</h2>
+    <p class="error-message">Perangkat atau browser kamu belum mendukung WebXR. Coba Chrome di Android atau Safari di iOS 15+.</p>
   </div>
 
 </body>

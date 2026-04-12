@@ -12,25 +12,42 @@ There is no test runner, linter, or formatter configured. Don't invent one.
 
 ## Architecture
 
-A single-page WebXR experience (vanilla JS + Three.js, no framework). All UI markup and most CSS lives inline in [index.html](index.html); only runtime logic is modularized under [src/](src/).
+**Pemburu Hantu** — a GPS-based ghost hunting AR game (Pokemon Go style) with Indonesian folklore ghosts. Vanilla JS + Three.js, no framework. All UI markup and CSS lives inline in `index.html`; runtime logic is modularized under `src/`.
 
-Three classes form the entire runtime, wired top-down:
+### App flow
 
-1. **[src/main.js](src/main.js) — `App`**: DOM controller. Owns UI state (loading → start screen → AR HUD), builds the creature selection grid from [src/creatures.js](src/creatures.js), tracks `creatureStats` (health/happiness), and dispatches Feed/Pet/Play actions into the AR scene. Does not touch Three.js directly — it talks to `ARScene` via callbacks (`onPlaced`, `onError`) and calls `arScene.creatureModel.play*Animation()` for interactions.
+```
+Loading → Hunt Screen (ghost list + GPS) → AR Battle (shoot ghost) → Capture → Collection
+```
 
-2. **[src/ARScene.js](src/ARScene.js) — `ARScene`**: Three.js + WebXR host. Has two modes decided at `init()` time:
-   - **XR mode**: `navigator.xr.requestSession('immersive-ar')` with `hit-test` + `dom-overlay`. A reticle follows hit-test results; tap-to-place (`select` event) spawns the creature at the hit pose.
-   - **Fallback mode** (`isFallbackMode = true`): used when WebXR is unsupported or the session fails. Tries `getUserMedia({ facingMode: 'environment' })` for a camera-backed video element behind a transparent renderer; if the camera is also unavailable, calls `addGradientBackground()` for a pure 3D viewer. Installs touch/mouse rotate + pinch/wheel zoom via `setupTouchControls()`, and places the creature immediately at origin.
-   - `App.onARError` watches `arScene.isFallbackMode` to toggle the "fallback" mode banner — fallback is a normal code path, not a hard error.
+### Core modules
 
-3. **[src/CreatureModel.js](src/CreatureModel.js) — `CreatureModel`**: Per-creature visual. First tries to load a remote GLB/GLTF (URLs hardcoded in `modelUrls` per creature id, hosted on a Supabase public bucket); on any failure falls back to `buildProceduralCreature()` which assembles a stylized mesh from primitives. Exposes `playEatingAnimation()` / `playLoveAnimation()` / `playPlayAnimation()`, driven from `update(deltaTime)` which is ticked by `ARScene`'s render loop. `getObject()` returns the `THREE.Group` the scene adds.
+1. **`src/main.js` — `App`**: DOM controller. Manages screen transitions (hunt → battle → capture → collection), wires GPS location, collection persistence, and battle mechanics. Press backtick (`` ` ``) to toggle dev mode (unlocks all ghosts without GPS).
 
-### Creature data contract
+2. **`src/ARScene.js` — `ARScene`**: Three.js + WebXR host. Two modes:
+   - **XR mode**: `immersive-ar` session with `dom-overlay`. Ghost spawns 2m in front of camera.
+   - **Fallback mode**: camera via `getUserMedia` or dark gradient background. Ghost spawns at origin.
+   - Exposes `shoot()` which raycasts from screen center → ghost, and `captureGhost(callback)` for the capture animation.
 
-[src/creatures.js](src/creatures.js) is the single source of truth for the 6 built-in creatures. Each entry must define `id`, `name`, `description`, `personality`, `colors` (primary/secondary/accent), `gradient` (CSS string used by the HUD/card avatars), `icon` (inline SVG string rendered into the card/HUD), and `sounds` with `happy`/`pet`/`feed` arrays that `App` picks from randomly for toast messages. Adding a creature requires (a) an entry here, (b) optionally a matching key in `CreatureModel.modelUrls` for a GLB, and (c) optionally a branch in `CreatureModel.addSpecialFeatures()` for creature-specific visual effects in the procedural path.
+3. **`src/GhostModel.js` — `GhostModel`**: Per-ghost 3D model. Tries GLB from `modelUrls` (only kuntilanak has one at `/models/kuntilanak.glb`), otherwise procedural generation per ghost type (`buildPocong()`, `buildTuyul()`, etc.). Features ghostly floating, dodge AI (frequency = difficulty), `takeDamage()`, `playHitAnimation()`, `playCaptureAnimation()`, and `isHit(raycaster)`.
 
-### WebXR / HTTPS gotchas
+4. **`src/ghosts.js`**: Data for 6 Indonesian ghosts. Each entry: `id`, `name`, `description`, `lore`, `rarity`, `hp`, `difficulty`, `colors`, `gradient`, `icon` (inline SVG), `spawnPoints` (GPS coords), `sounds` (appear/hit/captured).
 
-- WebXR and `getUserMedia` both require a secure context — that is why [vite.config.js](vite.config.js) forces `server.https: true` and `host: true`. Do not disable HTTPS even when debugging locally.
-- iOS Safari needs 15+ for immersive AR; older iOS and desktop browsers intentionally land in fallback mode (see compatibility table in [README.md](README.md)).
-- The `dom-overlay` feature lets the HTML HUD render on top of the XR view — the HUD elements (`#ar-hud`, toast, action buttons) are plain DOM that stay live during the XR session.
+5. **`src/LocationManager.js`**: Geolocation API wrapper. Haversine distance calculation, `isInRange(ghostLocation, radius)`, position watching.
+
+6. **`src/HuntMap.js`**: Renders the ghost list UI on the hunt screen. Shows distance, rarity badge, "Buru!" button for in-range ghosts, "Ditangkap" badge for captured ones. Has `enableDevMode()` to bypass GPS.
+
+7. **`src/Collection.js`**: localStorage persistence (`ghosthunter_collection` key). Tracks which ghosts are captured with timestamps.
+
+### Adding a new ghost
+
+1. Add entry in `src/ghosts.js` with all required fields
+2. Optionally add a `build<Name>()` method in `GhostModel.js` for procedural model
+3. Optionally add a GLB to `public/models/` and map it in `GhostModel.modelUrls`
+4. Add GPS spawn coordinates to `spawnPoints`
+
+### WebXR / HTTPS
+
+- WebXR and `getUserMedia` both require a secure context — `vite.config.js` forces `server.https: true` and `host: true`. Do not disable HTTPS.
+- The `dom-overlay` feature lets the battle HUD (crosshair, HP bar, shoot button) render on top of the XR view.
+- Dev mode (backtick key) bypasses GPS requirement for local testing.

@@ -1,60 +1,50 @@
 import * as THREE from 'three';
-import { CreatureModel } from './CreatureModel.js';
+import { GhostModel } from './GhostModel.js';
 
 export class ARScene {
-  constructor(container, creatureData, callbacks = {}) {
+  constructor(container, ghostData, callbacks = {}) {
     this.container = container;
-    this.creatureData = creatureData;
+    this.ghostData = ghostData;
     this.callbacks = callbacks;
-    
+
     this.scene = null;
     this.camera = null;
     this.renderer = null;
-    this.creatureModel = null;
-    
+    this.ghostModel = null;
+
     this.xrSession = null;
     this.xrRefSpace = null;
-    this.hitTestSource = null;
-    
+
     this.isFallbackMode = false;
-    this.isCreaturePlaced = false;
-    
-    this.reticle = null;
+    this.isGhostSpawned = false;
+
     this.clock = new THREE.Clock();
-    
-    // Touch controls for fallback
-    this.touchState = {
-      isDragging: false,
-      lastX: 0,
-      lastY: 0,
-      rotationX: 0,
-      rotationY: 0,
-      zoom: 1
-    };
+    this.raycaster = new THREE.Raycaster();
+    this.screenCenter = new THREE.Vector2(0, 0);
+
+    this.damagePerShot = 15;
+    this.shootCooldown = 0;
+    this.shootCooldownTime = 400;
   }
 
   async init() {
     this.createScene();
     this.createLighting();
-    this.createReticle();
-    
-    // Check WebXR support
+
     const xrSupported = await this.checkXRSupport();
-    
+
     if (xrSupported) {
       await this.startXRSession();
     } else {
       await this.startFallbackMode();
     }
-    
+
     this.animate();
   }
 
   createScene() {
-    // Scene
     this.scene = new THREE.Scene();
-    
-    // Camera
+
     this.camera = new THREE.PerspectiveCamera(
       70,
       window.innerWidth / window.innerHeight,
@@ -62,8 +52,7 @@ export class ARScene {
       100
     );
     this.camera.position.set(0, 0.5, 1);
-    
-    // Renderer
+
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
       alpha: true,
@@ -74,65 +63,35 @@ export class ARScene {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.xr.enabled = true;
     this.renderer.setClearColor(0x000000, 0);
-    
+
     this.container.appendChild(this.renderer.domElement);
-    
-    // Handle resize
     window.addEventListener('resize', () => this.onResize());
   }
 
   createLighting() {
-    // Ambient light
-    const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+    const ambient = new THREE.AmbientLight(0x8888aa, 0.4);
     this.scene.add(ambient);
-    
-    // Main directional light (sun)
-    const sun = new THREE.DirectionalLight(0xffffff, 1.0);
-    sun.position.set(5, 10, 5);
-    sun.castShadow = true;
-    sun.shadow.mapSize.width = 1024;
-    sun.shadow.mapSize.height = 1024;
-    this.scene.add(sun);
-    
-    // Fill light
-    const fill = new THREE.DirectionalLight(0x9090ff, 0.3);
+
+    const moon = new THREE.DirectionalLight(0xaabbff, 0.8);
+    moon.position.set(3, 8, 5);
+    moon.castShadow = true;
+    moon.shadow.mapSize.width = 1024;
+    moon.shadow.mapSize.height = 1024;
+    this.scene.add(moon);
+
+    const fill = new THREE.DirectionalLight(0x443366, 0.3);
     fill.position.set(-5, 3, -5);
     this.scene.add(fill);
-    
-    // Rim light
-    const rim = new THREE.DirectionalLight(0xffffcc, 0.4);
-    rim.position.set(0, 5, -10);
-    this.scene.add(rim);
-    
-    // Hemisphere light for natural feel
-    const hemi = new THREE.HemisphereLight(0x87CEEB, 0x98D98E, 0.4);
-    this.scene.add(hemi);
-  }
 
-  createReticle() {
-    // Placement reticle
-    const geometry = new THREE.RingGeometry(0.08, 0.1, 32);
-    geometry.rotateX(-Math.PI / 2);
-    
-    const material = new THREE.MeshBasicMaterial({
-      color: 0x4ECDC4,
-      transparent: true,
-      opacity: 0.8
-    });
-    
-    this.reticle = new THREE.Mesh(geometry, material);
-    this.reticle.visible = false;
-    this.reticle.matrixAutoUpdate = false;
-    this.scene.add(this.reticle);
+    const hemi = new THREE.HemisphereLight(0x222244, 0x111122, 0.3);
+    this.scene.add(hemi);
   }
 
   async checkXRSupport() {
     if (!navigator.xr) return false;
-    
     try {
-      const supported = await navigator.xr.isSessionSupported('immersive-ar');
-      return supported;
-    } catch (e) {
+      return await navigator.xr.isSessionSupported('immersive-ar');
+    } catch {
       return false;
     }
   }
@@ -144,25 +103,15 @@ export class ARScene {
         optionalFeatures: ['hit-test', 'dom-overlay'],
         domOverlay: { root: document.body }
       });
-      
+
       this.xrSession = session;
       this.renderer.xr.setSession(session);
-      
       session.addEventListener('end', () => this.onSessionEnd());
-      
-      // Setup hit testing
-      const viewerSpace = await session.requestReferenceSpace('viewer');
+
       this.xrRefSpace = await session.requestReferenceSpace('local');
-      
-      try {
-        this.hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
-      } catch (e) {
-        console.log('Hit test not available');
-      }
-      
-      // Setup tap to place
-      session.addEventListener('select', () => this.onSelect());
-      
+
+      this.spawnGhost();
+
     } catch (error) {
       console.error('XR session failed:', error);
       await this.startFallbackMode();
@@ -171,218 +120,130 @@ export class ARScene {
 
   async startFallbackMode() {
     this.isFallbackMode = true;
-    
-    // Set background color
-    this.renderer.setClearColor(0x1A1D2E, 1);
-    
-    // Try to get camera
+    this.renderer.setClearColor(0x0A0B14, 1);
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'environment',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
       });
-      
-      // Create video element
+
       const video = document.createElement('video');
       video.srcObject = stream;
       video.playsInline = true;
       video.autoplay = true;
       video.muted = true;
-      
       video.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        z-index: -1;
+        position: fixed; top: 0; left: 0;
+        width: 100%; height: 100%;
+        object-fit: cover; z-index: -1;
       `;
-      
       this.container.insertBefore(video, this.renderer.domElement);
-      
       await video.play();
-      
-      // Make renderer transparent
       this.renderer.setClearColor(0x000000, 0);
-      
-    } catch (e) {
-      console.log('Camera not available, using solid background');
-      
-      // Add gradient background
-      this.addGradientBackground();
+
+    } catch {
+      this.addDarkBackground();
     }
-    
-    // Adjust camera for fallback
+
     this.camera.position.set(0, 0.3, 0.8);
     this.camera.lookAt(0, 0.15, 0);
-    
-    // Place creature immediately
-    this.placeCreature(new THREE.Vector3(0, 0, 0));
-    
-    // Setup touch controls
-    this.setupTouchControls();
-    
-    // Notify callback
-    if (this.callbacks.onError) {
-      this.callbacks.onError(new Error('Fallback mode'));
+
+    this.spawnGhost();
+
+    if (this.callbacks.onFallback) {
+      this.callbacks.onFallback();
     }
   }
 
-  addGradientBackground() {
-    // Create a gradient plane behind the scene
+  addDarkBackground() {
     const canvas = document.createElement('canvas');
     canvas.width = 512;
     canvas.height = 512;
     const ctx = canvas.getContext('2d');
-    
+
     const gradient = ctx.createLinearGradient(0, 0, 0, 512);
-    gradient.addColorStop(0, '#2D1B4E');
-    gradient.addColorStop(0.5, '#1A1D2E');
-    gradient.addColorStop(1, '#0D1117');
-    
+    gradient.addColorStop(0, '#1A0F2E');
+    gradient.addColorStop(0.5, '#0A0B14');
+    gradient.addColorStop(1, '#050510');
+
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, 512, 512);
-    
+
     const texture = new THREE.CanvasTexture(canvas);
-    const bgGeom = new THREE.PlaneGeometry(5, 5);
-    const bgMat = new THREE.MeshBasicMaterial({ map: texture });
-    const bgMesh = new THREE.Mesh(bgGeom, bgMat);
+    const bgMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(5, 5),
+      new THREE.MeshBasicMaterial({ map: texture })
+    );
     bgMesh.position.z = -2;
     this.scene.add(bgMesh);
-    
-    // Add floor
-    const floorGeom = new THREE.CircleGeometry(1, 64);
-    const floorMat = new THREE.MeshStandardMaterial({
-      color: 0x2A2D3E,
-      roughness: 0.8,
-      metalness: 0.1
-    });
-    const floor = new THREE.Mesh(floorGeom, floorMat);
+
+    const floor = new THREE.Mesh(
+      new THREE.CircleGeometry(1, 64),
+      new THREE.MeshStandardMaterial({ color: 0x151520, roughness: 0.9, metalness: 0.05 })
+    );
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = -0.001;
     floor.receiveShadow = true;
     this.scene.add(floor);
   }
 
-  setupTouchControls() {
-    const el = this.renderer.domElement;
-    
-    el.addEventListener('touchstart', (e) => {
-      if (e.touches.length === 1) {
-        this.touchState.isDragging = true;
-        this.touchState.lastX = e.touches[0].clientX;
-        this.touchState.lastY = e.touches[0].clientY;
-      }
-    });
-    
-    el.addEventListener('touchmove', (e) => {
-      if (!this.touchState.isDragging || !this.creatureModel) return;
-      
-      if (e.touches.length === 1) {
-        const deltaX = e.touches[0].clientX - this.touchState.lastX;
-        const deltaY = e.touches[0].clientY - this.touchState.lastY;
-        
-        // Rotate creature
-        this.touchState.rotationY += deltaX * 0.01;
-        
-        this.touchState.lastX = e.touches[0].clientX;
-        this.touchState.lastY = e.touches[0].clientY;
-      } else if (e.touches.length === 2) {
-        // Pinch to zoom
-        const dist = Math.hypot(
-          e.touches[0].clientX - e.touches[1].clientX,
-          e.touches[0].clientY - e.touches[1].clientY
-        );
-        
-        if (this.touchState.lastPinchDist) {
-          const delta = dist - this.touchState.lastPinchDist;
-          this.touchState.zoom = Math.max(0.5, Math.min(2, this.touchState.zoom + delta * 0.005));
-          this.camera.position.z = 0.8 / this.touchState.zoom;
-        }
-        
-        this.touchState.lastPinchDist = dist;
-      }
-    });
-    
-    el.addEventListener('touchend', () => {
-      this.touchState.isDragging = false;
-      this.touchState.lastPinchDist = null;
-    });
-    
-    // Mouse controls for desktop
-    el.addEventListener('mousedown', (e) => {
-      this.touchState.isDragging = true;
-      this.touchState.lastX = e.clientX;
-      this.touchState.lastY = e.clientY;
-    });
-    
-    el.addEventListener('mousemove', (e) => {
-      if (!this.touchState.isDragging || !this.creatureModel) return;
-      
-      const deltaX = e.clientX - this.touchState.lastX;
-      this.touchState.rotationY += deltaX * 0.01;
-      
-      this.touchState.lastX = e.clientX;
-      this.touchState.lastY = e.clientY;
-    });
-    
-    el.addEventListener('mouseup', () => {
-      this.touchState.isDragging = false;
-    });
-    
-    el.addEventListener('wheel', (e) => {
-      this.touchState.zoom = Math.max(0.5, Math.min(2, this.touchState.zoom - e.deltaY * 0.001));
-      this.camera.position.z = 0.8 / this.touchState.zoom;
-    });
-  }
+  spawnGhost() {
+    if (this.isGhostSpawned) return;
 
-  onSelect() {
-    if (this.isCreaturePlaced) return;
-    if (!this.reticle.visible) return;
-    
-    const position = new THREE.Vector3();
-    position.setFromMatrixPosition(this.reticle.matrix);
-    
-    this.placeCreature(position);
-  }
+    this.ghostModel = new GhostModel(this.ghostData);
+    this.ghostModel.setScale(1.5);
 
-  placeCreature(position) {
-    if (this.isCreaturePlaced) return;
-    
-    // Create creature model
-    this.creatureModel = new CreatureModel(this.creatureData);
-    this.creatureModel.setScale(1.5);
-    
-    const obj = this.creatureModel.getObject();
-    obj.position.copy(position);
-    this.scene.add(obj);
-    
-    this.isCreaturePlaced = true;
-    this.reticle.visible = false;
-    
-    // Callback
-    if (this.callbacks.onPlaced) {
-      this.callbacks.onPlaced();
+    const obj = this.ghostModel.getObject();
+
+    if (this.isFallbackMode) {
+      obj.position.set(0, 0, 0);
+    } else {
+      obj.position.set(0, 0, -2);
     }
+
+    this.scene.add(obj);
+    this.isGhostSpawned = true;
+
+    if (this.callbacks.onGhostSpawned) {
+      this.callbacks.onGhostSpawned();
+    }
+  }
+
+  shoot() {
+    if (!this.ghostModel || this.ghostModel.isDead) return { hit: false };
+    if (this.shootCooldown > 0) return { hit: false };
+
+    this.shootCooldown = this.shootCooldownTime;
+
+    this.raycaster.setFromCamera(this.screenCenter, this.camera);
+    const hit = this.ghostModel.isHit(this.raycaster);
+
+    if (hit) {
+      const dead = this.ghostModel.takeDamage(this.damagePerShot);
+      return {
+        hit: true,
+        hp: this.ghostModel.hp,
+        maxHp: this.ghostModel.maxHp,
+        dead
+      };
+    }
+
+    return { hit: false };
+  }
+
+  captureGhost(onComplete) {
+    if (!this.ghostModel) return;
+    this.ghostModel.playCaptureAnimation(onComplete);
   }
 
   onSessionEnd() {
     this.xrSession = null;
-    this.hitTestSource = null;
   }
 
   onResize() {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-    
-    this.camera.aspect = width / height;
+    this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
-    
-    this.renderer.setSize(width, height);
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
   }
 
   animate() {
@@ -393,38 +254,38 @@ export class ARScene {
   }
 
   update(frame) {
-    const deltaTime = this.clock.getDelta();
-    
-    // Update creature
-    if (this.creatureModel) {
-      this.creatureModel.update(deltaTime);
-      
-      // Apply touch rotation in fallback mode
-      if (this.isFallbackMode) {
-        const obj = this.creatureModel.getObject();
-        obj.rotation.y = this.touchState.rotationY;
-      }
+    const delta = this.clock.getDelta();
+
+    if (this.shootCooldown > 0) {
+      this.shootCooldown -= delta * 1000;
     }
-    
-    // Update hit test in XR mode
-    if (frame && this.hitTestSource && !this.isCreaturePlaced) {
-      const hitTestResults = frame.getHitTestResults(this.hitTestSource);
-      
-      if (hitTestResults.length > 0) {
-        const hit = hitTestResults[0];
-        const pose = hit.getPose(this.xrRefSpace);
-        
-        if (pose) {
-          this.reticle.visible = true;
-          this.reticle.matrix.fromArray(pose.transform.matrix);
-        }
-      } else {
-        this.reticle.visible = false;
-      }
+
+    if (this.ghostModel) {
+      this.ghostModel.update(delta);
     }
   }
 
   render() {
     this.renderer.render(this.scene, this.camera);
+  }
+
+  dispose() {
+    this.renderer.setAnimationLoop(null);
+
+    if (this.xrSession) {
+      this.xrSession.end().catch(() => {});
+    }
+
+    const video = this.container.querySelector('video');
+    if (video) {
+      video.srcObject?.getTracks().forEach(t => t.stop());
+      video.remove();
+    }
+
+    if (this.renderer.domElement.parentNode) {
+      this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
+    }
+
+    this.renderer.dispose();
   }
 }
