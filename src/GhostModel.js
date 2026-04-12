@@ -400,33 +400,71 @@ export class GhostModel {
     const prevState = this.state;
     this.state = 'hit';
 
+    // --- RED FLASH: turn ghost red then flicker opacity ---
+    const meshes = [];
     this.group.traverse(child => {
       if (child.isMesh && child.material) {
-        const orig = child.material.emissiveIntensity || 0;
-        child.material.emissiveIntensity = 1.5;
-        child.material.emissive = new THREE.Color(0xffffff);
-        setTimeout(() => {
-          if (!this.isDead) {
-            child.material.emissiveIntensity = orig || 0.15;
-            child.material.emissive = new THREE.Color(this.data.colors.accent);
-          }
-        }, 150);
+        meshes.push({
+          mesh: child,
+          origEmissive: child.material.emissive.clone(),
+          origEmissiveIntensity: child.material.emissiveIntensity || 0,
+          origOpacity: child.material.opacity
+        });
+        // Immediately flash red
+        child.material.emissive = new THREE.Color(0xff0000);
+        child.material.emissiveIntensity = 2.0;
       }
     });
 
+    // Flicker opacity rapidly for 400ms
+    const flickerDur = 400;
+    const flickerStart = performance.now();
+    const flickerInterval = 40; // ms per flicker step
+    let lastFlicker = flickerStart;
+    let flickerHigh = false;
+
+    const flickerAnim = () => {
+      const now = performance.now();
+      const elapsed = now - flickerStart;
+      if (elapsed >= flickerDur || this.isDead) {
+        // Restore originals
+        meshes.forEach(m => {
+          m.mesh.material.emissive.copy(m.origEmissive);
+          m.mesh.material.emissiveIntensity = m.origEmissiveIntensity;
+          m.mesh.material.opacity = m.origOpacity;
+        });
+        return;
+      }
+
+      if (now - lastFlicker >= flickerInterval) {
+        lastFlicker = now;
+        flickerHigh = !flickerHigh;
+        meshes.forEach(m => {
+          m.mesh.material.opacity = flickerHigh ? 0.3 : 0.8;
+          // Fade red back toward original over time
+          const t = elapsed / flickerDur;
+          m.mesh.material.emissiveIntensity = 2.0 * (1 - t) + m.origEmissiveIntensity * t;
+        });
+      }
+      requestAnimationFrame(flickerAnim);
+    };
+    requestAnimationFrame(flickerAnim);
+
+    // --- BIGGER KNOCKBACK ---
     const base = this.root || this.group;
     const startPos = base.position.clone();
     const knockDir = new THREE.Vector3(
-      (Math.random() - 0.5) * 0.06,
-      0.02,
-      (Math.random() - 0.5) * 0.06
+      (Math.random() - 0.5) * 0.15,
+      0.04,
+      (Math.random() - 0.5) * 0.15
     );
 
-    const dur = 300;
+    const dur = 400;
     const start = performance.now();
     const anim = () => {
       const t = Math.min((performance.now() - start) / dur, 1);
-      const ease = t < 0.3 ? t / 0.3 : 1 - (t - 0.3) / 0.7;
+      // Sharp in, slow out
+      const ease = t < 0.2 ? t / 0.2 : 1 - Math.pow((t - 0.2) / 0.8, 2);
       base.position.x = startPos.x + knockDir.x * ease;
       base.position.y = startPos.y + knockDir.y * ease;
       base.position.z = startPos.z + knockDir.z * ease;
@@ -553,7 +591,33 @@ export class GhostModel {
   getObject() { return this.group; }
   setScale(scale) { this.group.scale.setScalar(scale); }
 
+  /** Returns a bounding sphere in world space for reliable hit detection */
+  getHitBox() {
+    const box = new THREE.Box3().setFromObject(this.group);
+    const sphere = new THREE.Sphere();
+    box.getBoundingSphere(sphere);
+    // Slightly enlarge for forgiving hit detection
+    sphere.radius *= 1.2;
+    return sphere;
+  }
+
+  /** Get the world position of the ghost center */
+  getWorldPosition() {
+    const pos = new THREE.Vector3();
+    this.group.getWorldPosition(pos);
+    // Offset up to center (ghosts hover above origin)
+    const base = this.root || this.group;
+    pos.y += base.position.y;
+    return pos;
+  }
+
   isHit(raycaster) {
+    // Try bounding sphere first (more reliable for small meshes)
+    const sphere = this.getHitBox();
+    if (raycaster.ray.intersectsSphere(sphere)) {
+      return true;
+    }
+    // Fallback to mesh intersection
     const intersects = raycaster.intersectObjects(this.group.children, true);
     return intersects.length > 0;
   }

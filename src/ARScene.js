@@ -23,8 +23,18 @@ export class ARScene {
     this.screenCenter = new THREE.Vector2(0, 0);
 
     this.damagePerShot = 15;
-    this.shootCooldown = 0;
-    this.shootCooldownTime = 400;
+    // Timestamp-based cooldown (not frame-dependent)
+    this.lastShotTime = 0;
+    this.shootCooldownMs = 500; // minimum ms between shots
+
+    // Screen shake state
+    this._shakeOffset = new THREE.Vector3();
+    this._shakeIntensity = 0;
+    this._shakeDecay = 0;
+    this._originalCamPos = null;
+
+    // Hit flash particles
+    this._hitParticles = [];
   }
 
   async init() {
@@ -52,6 +62,7 @@ export class ARScene {
       100
     );
     this.camera.position.set(0, 0.5, 1);
+    this._originalCamPos = this.camera.position.clone();
 
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
@@ -147,6 +158,7 @@ export class ARScene {
 
     this.camera.position.set(0, 0.3, 0.8);
     this.camera.lookAt(0, 0.15, 0);
+    this._originalCamPos = this.camera.position.clone();
 
     this.spawnGhost();
 
@@ -209,19 +221,57 @@ export class ARScene {
     }
   }
 
+  /**
+   * Check if ghost is near screen center using projection instead of raycast.
+   * This is more reliable than raycasting on small procedural meshes.
+   */
+  _isGhostNearCrosshair() {
+    if (!this.ghostModel) return false;
+
+    const ghostPos = this.ghostModel.getWorldPosition();
+    // Project ghost world position to normalized device coordinates
+    const projected = ghostPos.clone().project(this.camera);
+
+    // Distance from screen center (0,0) in NDC
+    const dist = Math.sqrt(projected.x * projected.x + projected.y * projected.y);
+
+    // Check ghost is in front of camera
+    if (projected.z > 1) return false;
+
+    // Forgiving hit radius: ~15% of screen from center
+    return dist < 0.3;
+  }
+
   shoot() {
     if (!this.ghostModel || this.ghostModel.isDead) return { hit: false };
-    if (this.shootCooldown > 0) return { hit: false };
 
-    this.shootCooldown = this.shootCooldownTime;
+    // Timestamp-based cooldown - immune to frame rate issues
+    const now = Date.now();
+    if (now - this.lastShotTime < this.shootCooldownMs) return { hit: false, cooldown: true };
+    this.lastShotTime = now;
 
-    this.raycaster.setFromCamera(this.screenCenter, this.camera);
-    const hit = this.ghostModel.isHit(this.raycaster);
+    // Use both: screen-space proximity AND raycast for best results
+    const screenHit = this._isGhostNearCrosshair();
+    let rayHit = false;
+    if (!screenHit) {
+      this.raycaster.setFromCamera(this.screenCenter, this.camera);
+      rayHit = this.ghostModel.isHit(this.raycaster);
+    }
+
+    const hit = screenHit || rayHit;
 
     if (hit) {
       const dead = this.ghostModel.takeDamage(this.damagePerShot);
+
+      // Spawn a hit flash particle at ghost position
+      this._spawnHitFlash();
+
+      // Screen shake
+      this._triggerShake(0.012);
+
       return {
         hit: true,
+        damage: this.damagePerShot,
         hp: this.ghostModel.hp,
         maxHp: this.ghostModel.maxHp,
         dead
@@ -229,6 +279,36 @@ export class ARScene {
     }
 
     return { hit: false };
+  }
+
+  /** Spawn a brief flash sprite at the ghost's position */
+  _spawnHitFlash() {
+    if (!this.ghostModel) return;
+    const ghostPos = this.ghostModel.getWorldPosition();
+
+    const spriteMat = new THREE.SpriteMaterial({
+      color: 0xffaa00,
+      transparent: true,
+      opacity: 1,
+      blending: THREE.AdditiveBlending,
+      depthTest: false,
+    });
+    const sprite = new THREE.Sprite(spriteMat);
+    sprite.position.copy(ghostPos);
+    sprite.scale.setScalar(0.15);
+    this.scene.add(sprite);
+
+    this._hitParticles.push({
+      sprite,
+      born: performance.now(),
+      life: 250, // ms
+    });
+  }
+
+  /** Trigger camera shake */
+  _triggerShake(intensity) {
+    this._shakeIntensity = intensity;
+    this._shakeDecay = intensity;
   }
 
   captureGhost(onComplete) {
@@ -256,12 +336,39 @@ export class ARScene {
   update(frame) {
     const delta = this.clock.getDelta();
 
-    if (this.shootCooldown > 0) {
-      this.shootCooldown -= delta * 1000;
-    }
-
+    // Update ghost
     if (this.ghostModel) {
       this.ghostModel.update(delta);
+    }
+
+    // Update hit particles
+    const now = performance.now();
+    for (let i = this._hitParticles.length - 1; i >= 0; i--) {
+      const p = this._hitParticles[i];
+      const age = now - p.born;
+      if (age >= p.life) {
+        this.scene.remove(p.sprite);
+        p.sprite.material.dispose();
+        this._hitParticles.splice(i, 1);
+      } else {
+        const t = age / p.life;
+        p.sprite.material.opacity = 1 - t;
+        p.sprite.scale.setScalar(0.15 + t * 0.2);
+      }
+    }
+
+    // Camera shake
+    if (this._shakeDecay > 0.0005) {
+      this._shakeOffset.set(
+        (Math.random() - 0.5) * this._shakeDecay * 2,
+        (Math.random() - 0.5) * this._shakeDecay * 2,
+        0
+      );
+      this.camera.position.copy(this._originalCamPos).add(this._shakeOffset);
+      this._shakeDecay *= 0.85; // exponential decay per frame
+    } else if (this._shakeDecay > 0) {
+      this._shakeDecay = 0;
+      this.camera.position.copy(this._originalCamPos);
     }
   }
 
@@ -281,6 +388,13 @@ export class ARScene {
       video.srcObject?.getTracks().forEach(t => t.stop());
       video.remove();
     }
+
+    // Clean up hit particles
+    this._hitParticles.forEach(p => {
+      this.scene.remove(p.sprite);
+      p.sprite.material.dispose();
+    });
+    this._hitParticles = [];
 
     if (this.renderer.domElement.parentNode) {
       this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);

@@ -3,6 +3,7 @@ import { ARScene } from './ARScene.js';
 import { LocationManager } from './LocationManager.js';
 import { Collection } from './Collection.js';
 import { HuntMap } from './HuntMap.js';
+import { AudioManager } from './AudioManager.js';
 
 class App {
   constructor() {
@@ -12,6 +13,12 @@ class App {
     this.locationManager = new LocationManager();
     this.huntMap = null;
     this.devMode = false;
+
+    this.audio = new AudioManager();
+
+    // Debounce state for shoot button
+    this._shootLocked = false;
+    this._shootDebounceMs = 350;
 
     this.init();
   }
@@ -56,6 +63,7 @@ class App {
       ghostName: document.getElementById('ghost-name'),
       ghostHpBar: document.getElementById('ghost-hp-bar'),
       ghostHpText: document.getElementById('ghost-hp-text'),
+      ghostHpTrack: document.querySelector('.ghost-hp-track'),
       crosshair: document.getElementById('crosshair'),
       btnShoot: document.getElementById('btn-shoot'),
       btnFlee: document.getElementById('btn-flee'),
@@ -68,13 +76,21 @@ class App {
       toast: document.getElementById('toast'),
       errorScreen: document.getElementById('error-screen'),
       devModeBtn: document.getElementById('dev-mode-btn'),
+      screenFlash: document.getElementById('screen-flash'),
     };
   }
 
   bindEvents() {
     this.elements.openCollection.addEventListener('click', () => this.showCollection());
     this.elements.closeCollection.addEventListener('click', () => this.hideCollection());
-    this.elements.btnShoot.addEventListener('click', () => this.shoot());
+    this.elements.btnShoot.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.shoot();
+    });
+    // Prevent double-tap zoom and multi-fire on touch
+    this.elements.btnShoot.addEventListener('touchend', (e) => {
+      e.preventDefault();
+    });
     this.elements.btnFlee.addEventListener('click', () => this.fleeBattle());
     this.elements.battleBackBtn.addEventListener('click', () => this.fleeBattle());
     this.elements.captureContinue.addEventListener('click', () => this.finishCapture());
@@ -137,6 +153,9 @@ class App {
     this.currentGhost = ghost;
     this.elements.huntScreen.classList.remove('visible');
 
+    // Initialize audio on user gesture
+    this.audio.init();
+
     this.updateBattleHUD(ghost);
 
     try {
@@ -180,6 +199,9 @@ class App {
   }
 
   onGhostSpawned() {
+    // Play ghost appear sound
+    this.audio.playGhostAppear();
+
     const sound = this.currentGhost.sounds.appear[
       Math.floor(Math.random() * this.currentGhost.sounds.appear.length)
     ];
@@ -193,31 +215,122 @@ class App {
   shoot() {
     if (!this.arScene || !this.currentGhost) return;
 
+    // Debounce at the UI level to prevent multi-tap
+    if (this._shootLocked) return;
+    this._shootLocked = true;
+    setTimeout(() => { this._shootLocked = false; }, this._shootDebounceMs);
+
+    // Play shoot sound immediately for responsiveness
+    this.audio.playShoot();
+
+    // Muzzle flash on button
+    this.elements.btnShoot.classList.add('muzzle-flash');
+    setTimeout(() => this.elements.btnShoot.classList.remove('muzzle-flash'), 150);
+
     const result = this.arScene.shoot();
 
-    if (result.hit) {
-      this.elements.crosshair.classList.add('hit');
-      setTimeout(() => this.elements.crosshair.classList.remove('hit'), 200);
+    if (result.cooldown) return; // engine-level cooldown, already played sound which is fine
 
+    if (result.hit) {
+      // Audio
+      this.audio.playHit();
+
+      // Crosshair hit feedback
+      this.elements.crosshair.classList.add('hit');
+      setTimeout(() => this.elements.crosshair.classList.remove('hit'), 300);
+
+      // Update HP bar
       this.updateHPBar(result.hp, result.maxHp);
 
+      // Flash HP bar red
+      this._flashHPBar();
+
+      // Screen flash overlay
+      this._screenFlash('#ff000040');
+
+      // Floating damage number
+      this._showDamageNumber(result.damage);
+
+      // Toast with ghost sound
       const sound = this.currentGhost.sounds.hit[
         Math.floor(Math.random() * this.currentGhost.sounds.hit.length)
       ];
       this.showToast(sound, '');
 
-      if (navigator.vibrate) navigator.vibrate([30, 20, 30]);
+      // Vibrate
+      if (navigator.vibrate) navigator.vibrate([50, 30, 50]);
 
       if (result.dead) {
         this.onGhostDefeated();
       }
     } else {
+      // Miss feedback
+      this.audio.playMiss();
+      this._showMissText();
       if (navigator.vibrate) navigator.vibrate(10);
     }
   }
 
+  /** Flash the HP bar track to indicate damage */
+  _flashHPBar() {
+    const track = this.elements.ghostHpTrack;
+    if (!track) return;
+    track.classList.add('hp-flash');
+    setTimeout(() => track.classList.remove('hp-flash'), 300);
+  }
+
+  /** Show a screen-edge flash overlay */
+  _screenFlash(color) {
+    const el = this.elements.screenFlash;
+    if (!el) return;
+    el.style.background = `radial-gradient(ellipse at center, transparent 40%, ${color} 100%)`;
+    el.classList.add('active');
+    setTimeout(() => el.classList.remove('active'), 200);
+  }
+
+  /** Floating damage number that rises and fades */
+  _showDamageNumber(damage) {
+    const el = document.createElement('div');
+    el.className = 'floating-damage';
+    el.textContent = `-${damage}`;
+
+    // Randomize horizontal position slightly
+    const offsetX = (Math.random() - 0.5) * 60;
+    el.style.left = `calc(50% + ${offsetX}px)`;
+
+    document.body.appendChild(el);
+
+    // Trigger animation
+    requestAnimationFrame(() => el.classList.add('animate'));
+
+    setTimeout(() => {
+      el.remove();
+    }, 800);
+  }
+
+  /** Show MISS text when shot misses */
+  _showMissText() {
+    const el = document.createElement('div');
+    el.className = 'floating-miss';
+    el.textContent = 'MISS!';
+
+    const offsetX = (Math.random() - 0.5) * 40;
+    el.style.left = `calc(50% + ${offsetX}px)`;
+
+    document.body.appendChild(el);
+
+    requestAnimationFrame(() => el.classList.add('animate'));
+
+    setTimeout(() => {
+      el.remove();
+    }, 700);
+  }
+
   onGhostDefeated() {
     this.elements.btnShoot.style.display = 'none';
+
+    // Play capture sound
+    this.audio.playCapture();
 
     this.arScene.captureGhost(() => {
       this.collection.add(this.currentGhost.id);
@@ -226,6 +339,9 @@ class App {
         Math.floor(Math.random() * this.currentGhost.sounds.captured.length)
       ];
       this.showToast(sound, '');
+
+      // Screen flash for capture (purple / mystic)
+      this._screenFlash('#9B59B660');
 
       this.elements.capturedGhostName.textContent = this.currentGhost.name;
       this.elements.captureOverlay.classList.add('visible');
@@ -256,6 +372,7 @@ class App {
     }
 
     this.currentGhost = null;
+    this._shootLocked = false;
     this.updateCollectionStats();
     this.huntMap.render();
 

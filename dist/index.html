@@ -658,6 +658,15 @@
       transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
+    .ghost-hp-track.hp-flash {
+      animation: hpFlashAnim 0.3s ease-out;
+    }
+
+    @keyframes hpFlashAnim {
+      0% { background: rgba(231, 76, 60, 0.6); box-shadow: 0 0 12px rgba(231, 76, 60, 0.5); }
+      100% { background: rgba(255, 255, 255, 0.15); box-shadow: none; }
+    }
+
     .ghost-hp-text {
       font-size: 11px;
       font-weight: 700;
@@ -742,6 +751,12 @@
       box-shadow: 0 0 12px rgba(46, 204, 113, 0.8);
     }
 
+    .crosshair.hit .crosshair-ring {
+      border-color: rgba(46, 204, 113, 0.6);
+      transform: scale(1.2);
+      transition: transform 0.15s, border-color 0.15s;
+    }
+
     /* Bottom battle bar */
     .battle-bottom {
       position: absolute;
@@ -758,25 +773,31 @@
     }
 
     .shoot-btn {
-      width: clamp(72px, 20vw, 88px);
-      height: clamp(72px, 20vw, 88px);
+      width: clamp(80px, 22vw, 96px);
+      height: clamp(80px, 22vw, 96px);
       background: linear-gradient(135deg, var(--blood), var(--blood-dark));
-      border: 4px solid rgba(255, 255, 255, 0.2);
+      border: 4px solid rgba(255, 255, 255, 0.3);
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
       transition: all 0.15s;
-      box-shadow: 0 6px 24px rgba(231, 76, 60, 0.4);
+      box-shadow: 0 6px 24px rgba(231, 76, 60, 0.4), 0 0 0 6px rgba(231, 76, 60, 0.15);
+      position: relative;
     }
 
     .shoot-btn:active {
-      transform: scale(0.9);
+      transform: scale(0.88);
       box-shadow: 0 2px 12px rgba(231, 76, 60, 0.6);
     }
 
     .shoot-btn svg { width: 45%; height: 45%; fill: white; }
+
+    .shoot-btn.muzzle-flash {
+      box-shadow: 0 0 40px rgba(255, 170, 0, 0.8), 0 0 80px rgba(255, 100, 0, 0.4);
+      border-color: rgba(255, 200, 100, 0.6);
+    }
 
     .flee-btn {
       background: var(--glass);
@@ -994,6 +1015,71 @@
       text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
     }
 
+    /* === Screen Flash Overlay === */
+    #screen-flash {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 150;
+      opacity: 0;
+      transition: opacity 0.05s ease-in;
+    }
+
+    #screen-flash.active {
+      opacity: 1;
+      transition: opacity 0.05s ease-in;
+      animation: flashFade 0.2s ease-out forwards;
+    }
+
+    @keyframes flashFade {
+      0% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+
+    /* === Floating Damage Number === */
+    .floating-damage {
+      position: fixed;
+      top: 45%;
+      font-family: 'Nunito', sans-serif;
+      font-size: clamp(28px, 7vw, 40px);
+      font-weight: 800;
+      color: #FF4444;
+      text-shadow: 0 2px 8px rgba(255, 0, 0, 0.5), 0 0 20px rgba(255, 0, 0, 0.3);
+      pointer-events: none;
+      z-index: 200;
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+      transition: none;
+    }
+
+    .floating-damage.animate {
+      transform: translateX(-50%) translateY(-80px);
+      opacity: 0;
+      transition: transform 0.7s cubic-bezier(0.2, 0, 0.3, 1), opacity 0.7s ease-out;
+    }
+
+    /* === Floating Miss Text === */
+    .floating-miss {
+      position: fixed;
+      top: 48%;
+      font-family: 'Nunito', sans-serif;
+      font-size: clamp(20px, 5vw, 28px);
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.6);
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+      pointer-events: none;
+      z-index: 200;
+      transform: translateX(-50%) translateY(0) scale(1);
+      opacity: 1;
+      transition: none;
+    }
+
+    .floating-miss.animate {
+      transform: translateX(-50%) translateY(-50px) scale(0.7);
+      opacity: 0;
+      transition: transform 0.6s cubic-bezier(0.2, 0, 0.3, 1), opacity 0.6s ease-out;
+    }
+
     /* Responsive */
     @media (orientation: landscape) and (max-height: 500px) {
       .ghost-list { flex-direction: row; flex-wrap: wrap; gap: 8px; }
@@ -1009,7 +1095,7 @@
       .collection-grid { grid-template-columns: 1fr; }
     }
   </style>
-  <script type="module" crossorigin src="/assets/index-ENeH0N1I.js"></script>
+  <script type="module" crossorigin src="/assets/index-BMWgwaC3.js"></script>
 </head>
 <body>
   <!-- Loading Screen -->
@@ -1159,6 +1245,9 @@
     <p class="capture-ghost-name" id="captured-ghost-name"></p>
     <button class="capture-continue-btn" id="capture-continue">Lanjut Berburu</button>
   </div>
+
+  <!-- Screen Flash Overlay (hit/capture effects) -->
+  <div id="screen-flash"></div>
 
   <!-- Mode Banner -->
   <div class="mode-banner" id="mode-banner">
